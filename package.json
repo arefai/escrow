@@ -1,0 +1,32 @@
+{
+  "name": "messenger-quick-start",
+  "version": "1.0.0",
+  "description": "An example webhook for Facebook Messenger quick start tutorial.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fbsamples/messenger-platform-samples.git"
+  },
+  "author": "Facebook",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "express": "^4.16.3",
+    "request": "^2.85.0",
+    "sqlite3": "^4.0.0",
+    "s3-nodejs-sample": "^1.0.9",
+    "aws-sdk": "^2.213.1",
+    "pug": "^2.0.3",
+    "react": "^16.2.0",
+    "react-dom": "^16.2.0",
+    "ejs": "^2.5.7",
+    "paypal-rest-sdk": "^1.8.1",
+    "express-validator": "^5.0.3"
+  },
+  "engines": {
+    "node": "~4.1.2"
+  }
+}

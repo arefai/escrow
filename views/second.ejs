@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Share Escrow Bot</title>
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+    <!--<script src="/js/main.js"></script>-->
+  </head>
+  <body>
+    <div id="content"></div>
+    
+    <div id="maindiv" style="display:none">
+      <form id="priceForm" onsubmit="setPrice">
+        Item name:<br>
+        <input id="description" type="text">
+        Price:<br>
+        <input id="number" type="number"><br>
+        I am the:<br>
+        <input type="radio" name="role" value="buyer"> Buyer <br>
+        <input type="radio" name="role" value="seller"> Seller <br>
+        <button id="submitbutton">
+          Submit
+        </button><br>
+        
+      </form>
+    </div>
+    <div id="asdf" style="display:none">
+       shareflow reached
+    </div>
+    <div id="asdf2" style="display:none">
+       about to close browser
+    </div>
+    <div id="asdf3" style="display:none">
+       failure
+    </div>
+    <script>
+      (function(){
+        var oldLog = console.log;
+        console.log = function (message) {
+          // document.write('message: ' + message);
+          // document.write(typeof(message));
+          // message = String(message);
+          return fetch('https://hospitable-quarter.glitch.me/log', {
+            body: JSON.stringify({text: message}), // must match 'Content-Type' header
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, same-origin, *omit
+            headers: {
+              'user-agent': 'Mozilla/4.0 MDN Example',
+              'content-type': 'application/json'
+            },
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, cors, *same-origin
+            redirect: 'follow', // *manual, follow, error
+            referrer: 'no-referrer', // *client, no-referrer
+          })
+          .then(function(response) {return response.json()}) // parses response to JSON
+          oldLog.apply(console, arguments);
+        };
+      })();
+      console.log('in script');
+      window.extAsyncInit = function() {
+        // the Messenger Extensions JS SDK is done loading 
+        // document.write('about to load buttonasdf');
+        // window.loadButton();
+        // document.write('making button visible');
+        let b = document.getElementById('maindiv');
+        b.style='display:inline';
+        console.log('here');
+        let button = document.getElementById('submitbutton');
+        let roles = document.getElementsByName('role');
+        let role_string = '';
+        for (let i = 0, length = roles.length; i < length; ++i){
+          if (roles[i].checked){
+            role_string = roles[i].value;
+            break;
+          }
+        }
+        let action_string1 = '';
+        let action_string2 = '';
+        if (role_string === 'seller'){
+          action_string1 = 'sell';
+          action_string2 = 'to';
+        }
+        else {
+          action_string1 = 'buy';
+          action_string2 = 'from';
+        }
+        let description = document.getElementById('description').value;
+        button.onclick = function () {
+          let message = {
+            "attachment":{
+              "type":"template",
+              "payload":{
+                "template_type":"generic",
+                "elements": [{
+                  "title":`${role_string} wants to ${action_string1} ${description} ${action_string2} you`,
+                  "image_url": "https://ivycoach.com/content/uploads/2011/07/University-Of-Michigan-Admissions-Stats.jpg",
+                  "subtitle": "Escrow Messenger Bot is a safe way to make transactions on Facebook Marketplace",
+                  "default_action":{
+                    "type":"web_url",
+                    "url": "https://hospitable-quarter.glitch.me/start_transaction"
+                  },
+                  "buttons":[{
+                    "type":"web_url",
+                    "url":"https://hospitable-quarter.glitch.me/start_transaction",
+                    "webview_height_ratio":"tall",
+                    "title":"Agree"
+                  }]
+                }]
+              }
+            }
+          };
+
+          MessengerExtensions.beginShareFlow(function(share_response) {
+            // User dismissed without error, but did they share the message?
+            console.log('shareflow success');
+            document.getElementById('asdf').style="display:inline";
+            console.log(`response.is_sent = ${response.is_sent}`);
+            if(response.is_sent === true){ 
+              // User shared. We're done here!
+              document.getElementById('asdf2').style="display:inline";
+              console.log('success');
+              MessengerExtensions.requestCloseBrowser();
+            }
+            else{
+              // User canceled their share! 
+              // try again?
+              console.log('failed');
+            }
+          }, 
+          function(errorCode, errorMessage) {      
+            // An error occurred in the process
+            console.log('shareflow error');
+            
+          },
+          message,
+          "current_thread");
+        }
+      };
+      (function(d, s, id){
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) {return;}
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'Messenger'));
+    </script>
+  </body>
+</html>

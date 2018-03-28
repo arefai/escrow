@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Share Escrow Bot</title>
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+    <!--<script src="/js/main.js"></script>-->
+  </head>
+  <body>
+    <div id="content">
+      <form id="priceForm" onsubmit="setPrice()">
+        <input id="number" type="number">
+        <input type="submit" value="Submit">
+      </form>
+    </div>
+    
+    <div id="buttondiv" style="display:none">
+       hey you can see me now
+    </div>
+    <p>
+      so you want to start a transaction eh?
+    </p>
+    <script>
+      let setPrice = function () {
+        let a = document.getElementById('priceForm');
+        console.log(a);
+        console.log('in setPrice');
+      };
+      (function(){
+        var oldLog = console.log;
+        console.log = function (message) {
+          // document.write('message: ' + message);
+          // document.write(typeof(message));
+          // message = String(message);
+          return fetch('https://hospitable-quarter.glitch.me/log', {
+            body: JSON.stringify({text: message}), // must match 'Content-Type' header
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, same-origin, *omit
+            headers: {
+              'user-agent': 'Mozilla/4.0 MDN Example',
+              'content-type': 'application/json'
+            },
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, cors, *same-origin
+            redirect: 'follow', // *manual, follow, error
+            referrer: 'no-referrer', // *client, no-referrer
+          })
+          .then(function(response) {return response.json()}) // parses response to JSON
+          oldLog.apply(console, arguments);
+        };
+      })();
+      console.log('in script');
+      window.extAsyncInit = function() {
+        
+        MessengerExtensions.askPermission(
+          function(permission_response) {
+            let persmissions = permission_response.permissions;
+            let isGranted = permission_response.isGranted;
+            
+            if (isGranted) {
+              // User gives permission
+              // Call some other function to send individual message
+            } else {
+              console.log("User did not grant permissions");
+            }
+          
+          }, function(errorCode, errorMessage) {
+            // Error occurred
+            console.log("Error in permissions");
+          },
+          "user_messaging"
+        );
+        
+        
+        
+        // the Messenger Extensions JS SDK is done loading 
+        // document.write('about to load buttonasdf');
+        // window.loadButton();
+        // document.write('making button visible');
+        let b = document.getElementById('buttondiv');
+        b.style='display:inline';
+        console.log('here');
+        // change so it says what changed and provide link for next step
+        b.onclick = function () {
+          let message = {
+            "attachment":{
+              "type":"template",
+              "payload":{
+                "template_type":"generic",
+                "elements": [{
+                  "title":"TITLE",
+                  "image_url": "https://ivycoach.com/content/uploads/2011/07/University-Of-Michigan-Admissions-Stats.jpg",
+                  "subtitle": "SUBTITLE",
+                  "default_action":{
+                    "type":"web_url",
+                    "url": "https://hospitable-quarter.glitch.me/start_transaction"
+                  },
+                  "buttons":[{
+                    "type":"web_url",
+                    "url":"https://hospitable-quarter.glitch.me/start_transaction",
+                    "title":"START TRANSACTION"
+                  }]
+                }]
+              }
+            }
+          };
+
+          MessengerExtensions.beginShareFlow(function(share_response) {
+            // User dismissed without error, but did they share the message?
+            if(response.is_sent === true){ 
+              // User shared. We're done here!
+              MessengerExtensions.requestCloseBrowser();
+              console.log('success');
+            }
+            else{
+              // User canceled their share! 
+              // try again?
+            }
+          }, 
+          function(errorCode, errorMessage) {      
+            // An error occurred in the process
+            console.log('error');
+          },
+          message,
+          "current_thread");
+        }
+      };
+      (function(d, s, id){
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) {return;}
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'Messenger'));
+    </script>
+  </body>
+</html>
