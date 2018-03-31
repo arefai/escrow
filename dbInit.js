@@ -9,6 +9,8 @@ module.exports = {
     }
     return db; 
   }, 
+  allAsync : allAsync, 
+  runAsync : runAsync
 }
 
 function initDb() {
@@ -20,9 +22,9 @@ function initDb() {
   });
 }
 
-function allAsync(sql) {
+function allAsync(sql, params) {
     return new Promise(function (resolve, reject) {
-        db.all(sql, function (err, row) {
+        db.all(sql, params, function (err, row) {
             if (err)
                 reject(err);
             else
@@ -31,13 +33,14 @@ function allAsync(sql) {
     });
 }
 
-function runAsync(sql) {
+function runAsync(sql, params) {
     return new Promise(function (resolve, reject) {
-        db.run(sql, function (err, row) {
+        db.run(sql, params, function (err) {
             if (err)
                 reject(err);
-            else
-                resolve(row);
+            else {
+                resolve(this);
+            }
         });
     });
   

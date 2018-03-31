@@ -3,7 +3,7 @@ const dbInit = require('./dbInit.js');
 exports.home = function (req, res) {
   let db = dbInit.getDb();
   let context = {}; // { transactions : [], messages : [], states : [] };
-  db.all("select name from sqlite_master where type='table'", function (err, tables) {
+  db.all("select name from sqlite_master where type='table' ORDER BY name ASC", function (err, tables) {
     console.log(tables);
     let j = 0;
     for(let i = 0; i < tables.length; ++i) {

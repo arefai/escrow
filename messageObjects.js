@@ -6,7 +6,7 @@ class Transaction {
     this.total_cost = price;
     this.order_number = id;
   }
-}; 
+};  
 
 class Button {
   constructor(title, payload) {

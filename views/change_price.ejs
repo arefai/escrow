@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Share Escrow Bot</title>
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+    <!--<script src="/js/main.js"></script>-->
+  </head>
+  <body>
+    <div id="content"></div>
+    
+    
+    <script>
+      (function(){
+        var oldLog = console.log;
+        console.log = function (message) {
+          // document.write('message: ' + message);
+          // document.write(typeof(message));
+          // message = String(message);
+          fetch('https://hospitable-quarter.glitch.me/log', {
+            body: JSON.stringify({text: message}), // must match 'Content-Type' header
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, same-origin, *omit
+            headers: {
+              'user-agent': 'Mozilla/4.0 MDN Example',
+              'content-type': 'application/json'
+            },
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, cors, *same-origin
+            redirect: 'follow', // *manual, follow, error
+            referrer: 'no-referrer', // *client, no-referrer
+          })
+          .then(function(response) {return response.json()}) // parses response to JSON
+          oldLog.apply(console, arguments);
+        };
+      })();
+      console.log('in script');
+      function dosomething () {
+        console.log('dosomething called');
+        let button = document.getElementById('submitbutton');
+        let price = document.getElementById('number').value;
+        MessengerExtensions.getContext("419937085114571",
+          function success(thread_context) {
+            console.log(thread_context.type);
+            let data = {
+              sender_id: thread_context.psid,
+              group_id: thread_context.tid,
+              price: price,
+            };
+            fetch('https://hospitable-quarter.glitch.me/post_database_price', {
+              body: JSON.stringify(data), // must match 'Content-Type' header
+              cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+              credentials: 'same-origin', // include, same-origin, *omit
+              headers: {
+                'user-agent': 'Mozilla/4.0 MDN Example',
+                'content-type': 'application/json'
+              },
+              method: 'POST', // *GET, POST, PUT, DELETE, etc.
+              mode: 'cors', // no-cors, cors, *same-origin
+              redirect: 'follow', // *manual, follow, error
+              referrer: 'no-referrer', // *client, no-referrer
+            })
+            
+          },
+          function error(err) {
+            console.log("Error on get context");
+          }
+        );
+        let message = {
+          "attachment":{
+            "type":"template",
+            "payload":{
+              "template_type":"generic",
+              "elements": [{
+                "title": "_user_ changed price to _value_",
+                "image_url": "https://ivycoach.com/content/uploads/2011/07/University-Of-Michigan-Admissions-Stats.jpg",
+                "subtitle": "Escrow Messenger Bot is a safe way to make transactions on Facebook Marketplace",
+                "default_action":{
+                  "type":"web_url",
+                  "url": "https://hospitable-quarter.glitch.me/start_transaction"
+                },
+                "buttons":[{
+                  "messenger_extensions": true, 
+                  "type":"web_url",
+                  "url":"https://hospitable-quarter.glitch.me/change_price",
+                  "webview_height_ratio":"tall",
+                  "title":"Change Price"
+                }, {
+                  "messenger_extensions": true, 
+                  "type":"web_url",
+                  "url":"https://hospitable-quarter.glitch.me/abort",
+                  "webview_height_ratio":"tall",
+                  "title":"Cancel or Decline"
+                },{
+                  "messenger_extensions": true,
+                  "type":"web_url",
+                  "url":"https://hospitable-quarter.glitch.me/start_transaction", // ?txid=?
+                  "webview_height_ratio":"tall",
+                  "title":"Review and Continue"
+                }]
+              }]
+            }
+          }
+        };
+        document.getElementById('asdf4').style="display:inline";
+        MessengerExtensions.beginShareFlow(function(share_response) {
+          // post json about transaction
+          // User dismissed without error, but did they share the message?
+          if(share_response.is_sent === true){ 
+            // User shared. We're done here!
+            console.log('success');
+            MessengerExtensions.requestCloseBrowser(null, null);
+          }
+          else{
+            // User canceled their share! 
+            // try again?
+            console.log('failed');
+          }
+        }, 
+        function(errorCode, errorMessage) {      
+          // An error occurred in the process
+          console.log('shareflow error');
+        },
+        message,
+        "current_thread");
+      }
+      window.extAsyncInit = function() {
+        // the Messenger Extensions JS SDK is done loading 
+        // document.write('about to load buttonasdf');
+        // window.loadButton();
+        // document.write('making button visible');
+        let b = document.getElementById('maindiv');
+        b.style='display:inline';
+        console.log('messenger extensions js sdk loaded');
+        
+      };
+      (function(d, s, id){
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) {return;}
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'Messenger'));
+    </script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <div id="maindiv" style="display:none" >
+      <div class="container">
+        <h2 style="color:#3B5998;">
+        Transaction Information
+        </h2>
+        <div class="form-group">
+          <span>Price:</span><br>
+          <input id="number" type="number"><br>
+        </div>
+        <button id="submitbutton" class="btn btn-default" onclick="dosomething()">
+          Submit
+        </button><br>
+      </div>
+    </div>
+  </body>
+</html>

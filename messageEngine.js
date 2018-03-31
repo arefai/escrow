@@ -40,19 +40,7 @@ function processMessage(sender, message) {
       else {
        let state = consts.START_STATE;
        if (rows.length === 0) {
-         console.log("NEW CONVERSATION");
-         db.run('INSERT INTO transactions(buyer) VALUES (?)', [null], handleSQLError);
-         let txid = null;
-         db.all('SELECT last_insert_rowid()', (err, rows) => {
-           if (err) {
-             handleSQLError(err);
-           }
-           else {
-             txid = rows[0]['last_insert_rowid()'];
-           }
-         });
-         db.run('INSERT INTO conversationStates(user, state, txid) VALUES (?, ?, ?)', [sender, consts.START_STATE, txid], function (err) { 
-           console.log("conversationStates INSERT FAILED")});
+         db.run('INSERT INTO conversationStates(user, state, txid) VALUES (?, ?, ?)', [sender, consts.START_STATE, null], function (err) { });
          sendStateMessage(state, sender);
        }
        else {
@@ -113,6 +101,90 @@ function moveTransaction(currentId, senderPSID, message, txid) {
           return;
         }
         
+        if (currentState.valueAction === 'NEW_TRANSACT') {
+           db.run('INSERT INTO transactions(buyer) VALUES (?)', [null], handleSQLError);
+           let txid = null;
+           db.all('SELECT last_insert_rowid()', (err, rows) => {
+             if (err) {
+               handleSQLError(err);
+             }
+             else {
+               txid = rows[0]['last_insert_rowid()'];
+               db.run('UPDATE conversationStates SET txid=? WHERE user=?', [txid, senderPSID], function (err){});
+             }
+           }); 
+          
+        }
+        
+        if (currentState.state === consts.BUYER_WAITING_STATE) {
+          console.log("BUYER WAITING...");
+          db.all("SELECT itemLink from transactions WHERE txid=?", [txid], function (err, rows) {
+            console.log("Checking the item status");
+            console.log(err);
+            if (!err && rows.length > 0) {
+              console.log(rows);
+              if (rows[0]['itemLink'] === null) {
+                 ui.sendText(senderPSID, "We have not received the item yet."); 
+              }
+              else {
+                  if (currentState.valueAction !== null) {
+                    try {
+                      let value = parseValue(currentState.valueAction, message);
+                      updateValue(currentState.valueAction, value, txid, senderPSID);
+                    }
+                    catch (err) {
+                      ui.sendText(senderPSID, "Sorry, the value you entered was invalid.");
+                      sendStateMessage(currentId, senderPSID);
+                      return;
+                    }
+                  }
+
+                  let nextTransactionId = currentState['nextstate'];
+                  if (nextTransactionId === consts.END_STATE) { 
+                    db.run("DELETE FROM conversationStates WHERE user=?", [senderPSID], handleSQLError);
+                    sendSummary(txid, senderPSID);
+                  }
+                  else {
+                    db.run("UPDATE conversationStates SET state=? where user=?", [nextTransactionId, senderPSID], handleSQLError);
+                  }
+                  return sendStateMessage(nextTransactionId, senderPSID);
+              }
+            }});
+          return;
+          
+        }
+        
+        if (currentState.valueAction === "EXISTING_TRANSACTION") {
+          db.all("SELECT * FROM transactions WHERE txid=?", [message.trim()], function(err, rows) {
+             if(!err && rows.length > 0) {
+               let tx = rows[0];
+               let state = 0;
+               console.log(tx);
+               if(tx['itemLink'] === null) {
+                state = consts.SELLER_INCOMPLETE_STATE;
+               }
+               else {
+                 state = consts.BUYER_INCOMPLETE_STATE;
+               }
+               console.log(state);
+               db.run("UPDATE conversationStates SET txid=? WHERE user=?", [tx['txid'], senderPSID],
+                     function(err) {
+                        db.run("UPDATE conversationStates SET state=? WHERE user=?", [state, senderPSID], function(err) {
+                        console.log(err);
+                         if(!err) {
+                           sendStateMessage(state, senderPSID);
+                         }
+                     }); 
+               });
+             }
+            else {
+               ui.sendText(senderPSID, "We didn't recognize that transaction, type ABORT to start over or enter a new transaction id"); 
+            }
+          }); 
+          return;
+          
+        }
+        
         if (currentState.valueAction !== null) {
           try {
             let value = parseValue(currentState.valueAction, message);
@@ -162,7 +234,13 @@ function sendStateMessage(stateId, senderId) {
         let options = rows[0]['options'];
         console.log("SENDER" + senderId);
         
-        if (type == "button") {
+        if (type === "dynamic") {
+          console.log("DYNAMIC : " + options);
+          consts.DYNAMIC_ACTIONS[options](db, senderId, ui);
+          
+        }
+        
+        if (type === "button") {
           // separate values by comma 
           var buttonTexts = options.split(',');
           var arrayLength = buttonTexts.length;
@@ -177,7 +255,7 @@ function sendStateMessage(stateId, senderId) {
           ui.sendButton(senderId, message, buttons); 
           
         }
-        if (type == "text") {
+        if (type === "text") {
           ui.sendText(senderId, message, null); 
         }
       }

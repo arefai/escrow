@@ -3,10 +3,12 @@ CREATE TABLE transactions (
        buyer VARCHAR(32), 
        seller VARCHAR(32), 
        price INTEGER,
-       itemLink TEXT
+       itemLink TEXT,
+       groupId INTEGER, 
+       itemDescription TEXT
 );
 CREATE TABLE conversationStates (
-	      txid INTEGER PRIMARY KEY AUTOINCREMENT, 
+	      txid INTEGER, 
         state INTEGER, 
         user VARCHAR(32)
 );

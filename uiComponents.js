@@ -23,8 +23,6 @@ function sendText(sender_psid, response) {
     // Construct the message body
   console.log("SENDER ID" + sender_psid);
   console.log(response);
-  // sending payment
-  payment.sendPayment(10);
   
   let body = {
    'text' : response 
@@ -58,9 +56,6 @@ function sendButton(sender_psid, response, buttons) {
     // Construct the message body
   console.log("SENDER ID" + sender_psid);
   console.log(response);
-  
-  // sending payment
-  payment.sendPayment(10);
   
   let body = {
    'text' : response 

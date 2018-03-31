@@ -33,8 +33,10 @@ let db = dbInit.getDb();
 
 module.exports = app;
 
+/*
 s3.initAWS(process);
 s3.uploadLocalFile('./schema.sql', 'test.txt');
+*/
 
 app.set('views', './views');
 app.set('view engine', 'ejs');
@@ -43,7 +45,11 @@ app.get('/database', dbHTML.home);
 
 app.get('/extension', extension.home);
 app.get('/start_transaction', extension.start_transaction);
+app.get('/abort', extension.abort);
+app.get('/change_price', extension.change_price);
 app.post('/log', extension.log);
+app.post('/send_message', extension.send_message);
+app.post('/post_database', extension.database);
 
 app.use(body_parser.urlencoded({
     extended: true
@@ -54,18 +60,89 @@ app.use(body_parser.urlencoded({
  */
 app.use(body_parser.json());
 
-app.post("/submit_transaction", [
-    check('price').exists().toFloat(),
-    check('username').exists()], 
+app.post("/submitTransaction", [
+    check('sender_id').exists(),
+    check('group_id').exists(),
+    check('price').exists().isDecimal().toFloat(), 
+    check('sender_is_buyer').exists().isBoolean().toBoolean(), 
+    check('item_description').exists()], 
   function (req, res) {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(422).json({ errors: errors.mapped() });
+        return res.status(422).json({ error : true, errors: errors.mapped() });
       }
 
       // matchedData returns only the subset of data validated by the middleware
-      const user = matchedData(req);
-      console.log(user);
+      const request = matchedData(req);
+      request.price = request.price.toFixed(2);
+  
+      let params = [];
+      if (request['sender_is_buyer']) {
+        params.push(request.sender_id);
+        params.push(null);
+      }
+      else {
+        params.push(null);
+        params.push(request.sender_id);
+      }
+  
+      params.push(request.price);
+      params.push(request.item_description);
+      params.push(request.group_id);
+  
+      return dbInit.runAsync("INSERT INTO transactions(buyer, seller, price, item_description, group_id) VALUES(?,?,?,?,?)",
+                         params)
+      .then(function(dbRes) {
+        if (dbRes.changes) {
+          return res.send(JSON.stringify({error : false, txid : dbRes.lastId}));
+        }
+        else {
+          throw "database not changed";
+        }
+      })
+      .catch(function(err) {
+        return res.status(500).send(JSON.stringify({error : true, errorMessage : "There was a problem with the database"}));
+      });
+});
+
+app.get("/transaction_info", function (req, res) {
+    let txid = req.query['txid'];
+    return dbInit.allAsync("SELECT * FROM transactions WHERE txid=?", [txid])
+    .then(function(rows) {
+      console.log(rows);
+      if(rows.length == 0) {
+         return res.status(400).send(JSON.stringify({error : true, errorMessage : "No such transaction exists"}));
+      }
+      else {
+         res.setHeader('Content-Type', 'application/json');
+         return res.send(JSON.stringify({transaction : rows[0], error : false}));
+      }
+    })
+    .catch(function (err) {
+      return res.status(500).send(JSON.stringify({error : true, errorMessage : "There was a problem with the database"}));
+    });
+});
+
+app.post("/setPrice", function (req, res) {
+  let price = parseFloat(req.body.price).toFixed(2);
+  let txid = req.body.txid;
+  if (isNaN(price)) {
+    return res.status(400).send(JSON.stringify({error : true, errorMessage : "Invalid price"}));
+  }
+  else {
+    return dbInit.runAsync("UPDATE transactions SET price=? WHERE txid=?", [price, txid])
+    .then(function(dbRes) {
+      let resJSON = {}
+      resJSON.error = dbRes.changes ? false : true;
+      if (resJSON.error) {
+         resJSON.errorMessage = "No such transaction exists"; 
+      }
+      return res.send(JSON.stringify(resJSON));
+    })
+    .catch(function (err) {
+      return res.send(JSON.stringify({error: true, errorMessage: "There was a problem with the database"}));
+    });
+  }
 });
 
 
