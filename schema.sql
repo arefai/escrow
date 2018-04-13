@@ -1,8 +1,11 @@
 CREATE TABLE transactions (
-       txid INTEGER PRIMARY KEY AUTOINCREMENT, 
+       txid VARCHAR(128) PRIMARY KEY, 
        buyer VARCHAR(32), 
        seller VARCHAR(32), 
-       price INTEGER,
+       buyer_agreed INTEGER DEFAULT 0,
+       seller_agreed INTEGER DEFAULT 0,
+       asked_seller INTEGER DEFAULT 0,
+       price REAL DEFAULT 0,
        itemLink TEXT,
        groupId INTEGER, 
        itemDescription TEXT
@@ -24,4 +27,11 @@ CREATE TABLE flowStates (
         valueAction VARCHAR(32),
         nextstate INTEGER,
         PRIMARY KEY (state, keyword)
+);
+CREATE TABLE users (
+        psid INTEGER PRIMARY KEY,
+        first VARCHAR(128),
+        last VARCHAR(128),
+        stripe_id INTEGER,
+        auth_token INTEGER
 );

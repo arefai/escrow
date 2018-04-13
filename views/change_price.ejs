@@ -3,20 +3,18 @@
   <head>
     <title>Share Escrow Bot</title>
     <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
-    <!--<script src="/js/main.js"></script>-->
   </head>
   <body>
-    <div id="content"></div>
-    
-    
     <script>
+      // document.getElementById('in_script').style='display:inline';
+      // document.write('hello world');
       (function(){
         var oldLog = console.log;
         console.log = function (message) {
           // document.write('message: ' + message);
           // document.write(typeof(message));
           // message = String(message);
-          fetch('https://hospitable-quarter.glitch.me/log', {
+          return fetch('https://hospitable-quarter.glitch.me/log', {
             body: JSON.stringify({text: message}), // must match 'Content-Type' header
             cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
             credentials: 'same-origin', // include, same-origin, *omit
@@ -34,103 +32,254 @@
         };
       })();
       console.log('in script');
-      function dosomething () {
-        console.log('dosomething called');
-        let button = document.getElementById('submitbutton');
-        let price = document.getElementById('number').value;
+      // Sends response messages via the Send API
+      function sendText (psid, message) {
+        let req = 'https://hospitable-quarter.glitch.me/send_message';
+        let body = {
+          psid: psid,
+          message: message
+        };
+        fetch(req, {
+          body: JSON.stringify(body), // must match 'Content-Type' header
+          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+          credentials: 'same-origin', // include, same-origin, *omit
+          headers: {
+            'user-agent': 'Mozilla/4.0 MDN Example',
+            'content-type': 'application/json'
+          },
+          method: 'POST', // *GET, POST, PUT, DELETE, etc.
+          mode: 'cors', // no-cors, cors, *same-origin
+          redirect: 'follow', // *manual, follow, error
+          referrer: 'no-referrer', // *client, no-referrer
+        });
+      }
+      function changePrice() {
+        // post to server id/role of confirming user
+        // on receive, parse json, check if both_agreed
+        // if yes: shareflow to process payments
+        // if no: close browser
+        let data = {
+          psid: document.getElementById('psid').value,
+          role: document.getElementById('role').value,
+          txid: <%= txid %>,
+          price: document.getElementById('new_price').value,
+        };
+        let url = 'https://hospitable-quarter.glitch.me/setPrice;
+        console.log(url);
+        fetch(url, {
+          credentials: 'same-origin',
+          header: new Headers({ 'Content-Type': 'application/json' }),
+          method: 'POST',
+          body: JSON.stringify(data),
+        }).then((response) => {
+          if (!response.ok) throw Error(response.statusText);
+          return response.json();
+        }).then((data) => {
+          let url = "https://hospitable-quarter.glitch.me/start_transaction" + <%= txid %>;
+          let message = {
+            "attachment":{
+              "type":"template",
+              "payload":{
+                "template_type":"generic",
+                "elements": [{
+                  "title":"price changed", //to {}
+                  "image_url": "https://ivycoach.com/content/uploads/2011/07/University-Of-Michigan-Admissions-Stats.jpg",
+                  "subtitle": "Escrow Messenger Bot is a safe way to make transactions on Facebook Marketplace",
+                  "default_action":{
+                    "type":"web_url",
+                    "url":url
+                  },
+                  "buttons":[{
+                    "messenger_extensions": true,
+                    "type":"web_url",
+                    "url":url, // ?txid=?
+                    "webview_height_ratio":"tall",
+                    "title":"Review and Continue"
+                  }]
+                  // todo add other buttons back
+                }]
+              }
+            }
+          };
+          MessengerExtensions.beginShareFlow(function(share_response) {
+            // User dismissed without error, but did they share the message?
+            if(response.is_sent === true){ 
+              // User shared. We're done here!
+              MessengerExtensions.requestCloseBrowser();
+              console.log('success');
+            }
+            else{
+              // User canceled their share! 
+              // try again?
+            }
+          }, 
+          function(errorCode, errorMessage) {      
+            // An error occurred in the process
+            console.log('error');
+          },
+          message, 
+          "current_thread");
+        }).catch(error => console.log(error));
+      }
+      
+      window.extAsyncInit = function() {
+        console.log(MessengerExtensions);
+        console.log('messenger extensions sdk loaded');
+        function ask_permission(psid) {
+          console.log('ask_permission called');
+          MessengerExtensions.getGrantedPermissions(function (permissions_response) {
+            let permission = permissions_response.permissions // list of permissions granted
+            console.log(permission);
+            console.log(permissions_response);
+            /*if (permission.indexOf('user_messaging') > -1) {
+              // send message
+              sendText(psid, 'We are in a private chat. Please upload your pdf here.');
+            }
+            else {
+              // ask for permission then send message
+              MessengerExtensions.askPermission(
+                function (permission_response) {
+                  if (permission.indexOf('user_messaging') > -1) {
+                    sendText(psid, 'We are in a private chat. Please upload your pdf here.');
+                  }
+                  else {
+                    console.log('permission not granted?');
+                  }
+                },function(errorCode, errorMessage) {
+                  // Error occurred
+                  console.log('error asking for permission');
+                }
+                "user_messaging"
+              );
+              
+            }*/
+          }, function() {
+            // An error occurred'
+            console.log("Error in granted");
+          });
+        }
+        // todo -- what if confirm post request arrives before transaction is updated with new buyer/seller info
+        function buyer(info, user) {
+          console.log('user is buyer');
+          if (info.buyer_confirmed && info.seller_confirmed) {
+            document.getElementById('complete').style = 'display:inline';
+          }
+          else {
+            // show confirm button
+            document.getElementById('confirm').style = 'display:inline';
+            // hidden form elements?
+            document.getElementById('psid').value = user;
+            document.getElementById('role').value = 'buyer';
+          }
+        }
+        function seller(info, user) {
+          console.log('user is seller');
+          if (info.seller_confirmed && info.buyer_confirmed) { 
+            document.getElementById('complete').style = 'display:inline';
+          }
+          else {
+            // show confirm button
+            document.getElementById('confirm').style = 'display:inline';
+            // hidden form elements?
+            document.getElementById('psid').value = user;
+            document.getElementById('role').value = 'seller';
+          }
+          Document.getElementById('role').value = 'seller';
+        }
+        function update_transaction(user, role) {
+          data = {
+            psid: user, 
+            role: role
+          };
+          url = 'https://hospitable-quarter.glitch.me/update_transaction'
+          fetch(url, {
+            body: JSON.stringify(data), // must match 'Content-Type' header
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, same-origin, *omit
+            headers: {
+              'user-agent': 'Mozilla/4.0 MDN Example',
+              'content-type': 'application/json'
+            },
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, cors, *same-origin
+            redirect: 'follow', // *manual, follow, error
+            referrer: 'no-referrer', // *client, no-referrer
+          }).then((response) => {
+            if (!response.ok) throw Error(response.statusText);
+            return response.json();
+          }).then((data) => {
+            console.log(data);
+          }).catch(error => console.log(error));
+        }
         MessengerExtensions.getContext("419937085114571",
           function success(thread_context) {
-            console.log(thread_context.type);
-            let data = {
-              sender_id: thread_context.psid,
-              group_id: thread_context.tid,
-              price: price,
-            };
-            fetch('https://hospitable-quarter.glitch.me/post_database_price', {
-              body: JSON.stringify(data), // must match 'Content-Type' header
-              cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
-              credentials: 'same-origin', // include, same-origin, *omit
-              headers: {
-                'user-agent': 'Mozilla/4.0 MDN Example',
-                'content-type': 'application/json'
-              },
-              method: 'POST', // *GET, POST, PUT, DELETE, etc.
-              mode: 'cors', // no-cors, cors, *same-origin
-              redirect: 'follow', // *manual, follow, error
-              referrer: 'no-referrer', // *client, no-referrer
+            let user = thread_context.psid;
+            // find whether user is buyer or seller
+            console.log('got context: continue');
+            let url = 'https://hospitable-quarter.glitch.me/transaction_info?txid=' + <%= txid %>;
+            console.log(url);
+            fetch(url, { credentials: 'same-origin' })
+            .then((response) => {
+              if (!response.ok) throw Error(response.statusText);
+              return response.json();
             })
-            
+            .then((data) => {
+              // set displayed elements appropriately 
+              // perhaps check if both confirmed first (stage finished)
+              console.log('got data');
+              console.log(data);
+              let info = data.transaction;
+              document.getElementById('info').style = 'display:inline';
+              document.getElementById('description').value = info.item;
+              document.getElementById('old_price').value = info.price;
+              console.log('got info');
+              document.getElementById('form').sytle = 'display:inline';
+              if (info.seller === 'null'){
+                if (info.buyer === user) {
+                  buyer(info, user);
+                }
+                else {
+                  update_transaction(user, 'seller'); // see todo what if above
+                  seller(info, user);
+                }
+              }
+              else if (info.buyer ===t 'null') {
+                if (info.seller === user) {
+                  seller(info, user);
+                }
+                else {
+                  update_transaction(user, 'buyer');
+                  buyer(info, user);
+                }
+              }
+              else {
+                if (info.seller === user) {
+                  seller(info, user);
+                }
+                else if (info.buyer === user) {
+                  buyer(info, user);
+                }
+                else {
+                  // error
+                }
+              }
+            })
+            .catch(error => console.log(error));
+            // if seller & has not uploaded, check permission & tell to upload
+            // then for buyer and seller show button to confirm
+            // where once they click, checks if both have the agreed
+            // & if they have sharesflow to begin processing payments
+            // & if not close browser, then if they click again show waiting for other party
+            // check this last part first
           },
           function error(err) {
-            console.log("Error on get context");
+            console.log("Error in getting context for Confirm and Continue");
           }
         );
-        let message = {
-          "attachment":{
-            "type":"template",
-            "payload":{
-              "template_type":"generic",
-              "elements": [{
-                "title": "_user_ changed price to _value_",
-                "image_url": "https://ivycoach.com/content/uploads/2011/07/University-Of-Michigan-Admissions-Stats.jpg",
-                "subtitle": "Escrow Messenger Bot is a safe way to make transactions on Facebook Marketplace",
-                "default_action":{
-                  "type":"web_url",
-                  "url": "https://hospitable-quarter.glitch.me/start_transaction"
-                },
-                "buttons":[{
-                  "messenger_extensions": true, 
-                  "type":"web_url",
-                  "url":"https://hospitable-quarter.glitch.me/change_price",
-                  "webview_height_ratio":"tall",
-                  "title":"Change Price"
-                }, {
-                  "messenger_extensions": true, 
-                  "type":"web_url",
-                  "url":"https://hospitable-quarter.glitch.me/abort",
-                  "webview_height_ratio":"tall",
-                  "title":"Cancel or Decline"
-                },{
-                  "messenger_extensions": true,
-                  "type":"web_url",
-                  "url":"https://hospitable-quarter.glitch.me/start_transaction", // ?txid=?
-                  "webview_height_ratio":"tall",
-                  "title":"Review and Continue"
-                }]
-              }]
-            }
-          }
-        };
-        document.getElementById('asdf4').style="display:inline";
-        MessengerExtensions.beginShareFlow(function(share_response) {
-          // post json about transaction
-          // User dismissed without error, but did they share the message?
-          if(share_response.is_sent === true){ 
-            // User shared. We're done here!
-            console.log('success');
-            MessengerExtensions.requestCloseBrowser(null, null);
-          }
-          else{
-            // User canceled their share! 
-            // try again?
-            console.log('failed');
-          }
-        }, 
-        function(errorCode, errorMessage) {      
-          // An error occurred in the process
-          console.log('shareflow error');
-        },
-        message,
-        "current_thread");
-      }
-      window.extAsyncInit = function() {
-        // the Messenger Extensions JS SDK is done loading 
-        // document.write('about to load buttonasdf');
-        // window.loadButton();
-        // document.write('making button visible');
-        let b = document.getElementById('maindiv');
-        b.style='display:inline';
-        console.log('messenger extensions js sdk loaded');
+        // seller flow
+        // check whether the pdf has been uploaded
+        // buyer flow
+        // show them button to confirm, if they are second to confirm once clicked, shareflow
         
       };
       (function(d, s, id){
@@ -141,20 +290,29 @@
         fjs.parentNode.insertBefore(js, fjs);
       }(document, 'script', 'Messenger'));
     </script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-    <div id="maindiv" style="display:none" >
-      <div class="container">
-        <h2 style="color:#3B5998;">
-        Transaction Information
-        </h2>
-        <div class="form-group">
-          <span>Price:</span><br>
-          <input id="number" type="number"><br>
-        </div>
-        <button id="submitbutton" class="btn btn-default" onclick="dosomething()">
-          Submit
-        </button><br>
-      </div>
+    <!--<div id="notready" style="display:inline">
+      HasdfadasdfEither one party has not confirmed the transaction or the seller has not uploaded the item
+    </div>-->
+    <div id="complete" style="display:none">
+      Both parties have agreed to the transaction, this stage is complete.<br>
+      Please check if a more recent stage of the process has been shared in your chat.<br>
+    </div>
+    <div id="info" style="display:none">
+      Item:<br>
+      <span id="descripton">{item}</span><br>
+      Old Price:<br>
+      <span id="old_price">{price}</span><br>
+    </div>
+    <div id="form" style="display:none">
+      <form id="" onsubmit="changePrice()">
+        Enter new price:<br>
+        <input id="new_price" type="number"><br>
+        <span id="psid" style="display:none"></span>
+        <span id="role" style="display:none"></span>
+      </form>
+    </div>
+    <div id="in_script" style="display:none">
+      We are in the script
     </div>
   </body>
 </html>

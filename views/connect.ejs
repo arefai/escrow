@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Connect With Stripe</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.glitch.com/0bfb5ef5-e978-448f-9979-fa994141fe32%2Fstripe.css?1523307615955">
+  </head>
+  <body>
+    <div id="content">
+      <script>
+      (function(){
+        var oldLog = console.log;
+        console.log = function (message) {
+          // document.write('message: ' + message);
+          // document.write(typeof(message));
+          // message = String(message);
+          fetch('https://hospitable-quarter.glitch.me/log', {
+            body: JSON.stringify({text: message}), // must match 'Content-Type' header
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, same-origin, *omit
+            headers: {
+              'user-agent': 'Mozilla/4.0 MDN Example',
+              'content-type': 'application/json'
+            },
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, cors, *same-origin
+            redirect: 'follow', // *manual, follow, error
+            referrer: 'no-referrer', // *client, no-referrer
+          })
+          .then(function(response) {return response.json()}) // parses response to JSON
+          oldLog.apply(console, arguments);
+        };
+      })();
+      </script>
+      <!-- <a href="/authorize?psid=" class="stripe-connect"><span>Connect with Stripe</span></a> -->
+      <a href="/authorize" class="stripe-connect"><span>Connect with Stripe</span></a>
+    </div>
+  </body>
+</html>

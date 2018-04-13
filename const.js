@@ -1,4 +1,5 @@
-const objects = require('./messageObjects.js');
+const objects = require('./messageObjects.js'),
+      dbHelp = require('./dbhtml.js');
 
 const ACTIONS = {
    "PRICE" : {
@@ -30,6 +31,25 @@ const ACTIONS = {
 }
 
 const DYNAMIC_ACTIONS = {
+   "SELLER_UPLOAD" : function(db, senderId, ui) {
+     dbHelp.allAsync("SELECT txid FROM conversationStates WHERE user=?", [senderId])
+     .then(function (rows) {
+        if (rows.length != 1) 
+          throw "Too many or no such conversation"
+       
+       let txid = rows[0]['txid'];
+       return db.runAsync("SELECT * from transactions WHERE txid=?", [txid]);
+     })
+     .then(function (row) {
+       let string = "Hello!, you've agreed to a transaction on E-scrow bot. Here is some basic information"
+       
+     })
+     .catch(err => {
+       ui.sendText(senderId, "Please upload your item so that we can forward it to the sender.");
+       
+     })
+     
+   },
    "SELLER_SHARE" : function(db, senderId, ui) {
       db.all("SELECT txid FROM conversationStates WHERE user=?", [senderId], function (err, rows) {
         if (!err && rows.length > 0) {

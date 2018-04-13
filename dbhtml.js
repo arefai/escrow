@@ -1,6 +1,6 @@
 const dbInit = require('./dbInit.js');
 
-exports.home = function (req, res) {
+function home(req, res) {
   let db = dbInit.getDb();
   let context = {}; // { transactions : [], messages : [], states : [] };
   db.all("select name from sqlite_master where type='table' ORDER BY name ASC", function (err, tables) {
@@ -26,3 +26,37 @@ exports.home = function (req, res) {
     }
   });
 };
+
+function allAsync(sql, params) {
+    let db = dbInit.getDb();
+    return new Promise(function (resolve, reject) {
+        db.all(sql, params, function (err, row) {
+            if (err)
+                reject(err);
+            else
+                resolve(row);
+        });
+    });
+}
+
+function runAsync(sql, params) {
+    let db = dbInit.getDb();
+    return new Promise(function (resolve, reject) {
+        db.run(sql, params, function (err) {
+            if (err)
+                reject(err);
+            else {
+                resolve(this);
+            }
+        });
+    });
+  
+  
+}
+
+
+module.exports = {
+  allAsync : allAsync, 
+  runAsync : runAsync,
+  home : home
+}

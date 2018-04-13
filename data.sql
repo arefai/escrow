@@ -1,4 +1,8 @@
 INSERT INTO flowStates (state, keyword, valueAction, nextstate) VALUES 
+(0, 'ANY', 'FILE', 1),
+(1, 'ANY' , null, 0)
+
+/*
     (0, 'PAYMENTS', null, 1),
     (1, 'ANY', null, 2),
     (2, 'ANY', null, 3),
@@ -30,8 +34,12 @@ INSERT INTO flowStates (state, keyword, valueAction, nextstate) VALUES
     (16, 'ANY', null, 22),
     (22, 'ANY', null, 0),
     (0, 'TRANSACTION', null, 6);
+    */
     
 INSERT INTO messages(state, messageType, message, options) VALUES 
+  (0, 'dynamic', 'TRANSACTION INFO HERE: ', 'SELLER_UPLOAD')
+
+/*
     -- beginning general info
     (0, 'button', 'Hi, welcome to escrow bot. Respond PAYMENTS if you would like to enter payment info or TRANSACTION if you would like to start a new transaction', 'PAYMENTS,TRANSACTION'),
     (1, 'text', 'You selected PAYMENTS. You can respond HELP to get a help message or ABORT to exit the process at any time. Please enter the full name that appears on the card.', ''),
@@ -71,3 +79,5 @@ INSERT INTO messages(state, messageType, message, options) VALUES
     --(14, 'text', 'Enter a new buyer name', ''),
     --(15, 'text', 'Enter a new seller name', ''),
     --(16, 'text', 'Enter a new price', ''),
+    
+*/
