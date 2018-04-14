@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Share Escrow Bot</title>
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+  </head>
+  <body>
+    
+    <script>var txid = <%- JSON.stringify(txid) %>;</script>
+    <script>
+      (function(){
+        var oldLog = console.log;
+        console.log = function (message) {
+          // document.write('message: ' + message);
+          // document.write(typeof(message));
+          // message = String(message);
+          return fetch('https://hospitable-quarter.glitch.me/log', {
+            body: JSON.stringify({text: message}), // must match 'Content-Type' header
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, same-origin, *omit
+            headers: {
+              'user-agent': 'Mozilla/4.0 MDN Example',
+              'content-type': 'application/json'
+            },
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, cors, *same-origin
+            redirect: 'follow', // *manual, follow, error
+            referrer: 'no-referrer', // *client, no-referrer
+          })
+          .then(function(response) {return response.json()}) // parses response to JSON
+          oldLog.apply(console, arguments);
+        };
+      })();
+      console.log('in script');
+      console.log('txid: '.concat(txid));
+      
+      
+      window.extAsyncInit = function() {
+        console.log(MessengerExtensions);
+        console.log('messenger extensions sdk loaded');
+        function buyer(info, user) {
+          console.log('user is buyer');
+          // buyer
+          document.getElementById('role').innerHTML = 'buyer';
+          document.getElementById('review').style = 'display:inline'; // worth factoring out?
+          if (info.buyer_confirmed) { // factor out to function with (other_confirmed, you_confirmed)
+            if (info.seller_confirmed) {
+              // this stage is complete
+              document.getElementById('complete').style = 'display:inline';
+            }
+            else {
+              // waiting on seller
+              document.getElementById('waiting').style = 'display:inline';
+              document.getElementById('waiting_on').value = 'Seller';
+            }
+          }
+          else {
+            // show confirm button
+            console.log('showing confirm button');
+            document.getElementById('confirm').style = 'display:inline';
+            // hidden form elements?
+            document.getElementById('confim_id').value = user;
+            document.getElementById('confirm_role').value = 'buyer';
+          }
+        }
+        function seller(info, user) {
+          console.log('user is seller');
+          if (info.asked_seller) {
+            if (info.seller_uploaded){
+              document.getElementById('review').style = 'display:inline';
+              if (info.seller_confirmed) { // factor this out to a function
+                if (info.buyer_confirmed) {
+                  // this stage is complete
+                  document.getElementById('complete').style = 'display:inline';
+                }
+                else {
+                  document.getElementById('waiting').style = 'display:inline';
+                  document.getElementById('waiting_on').value = 'Buyer';
+                }
+              }
+              else {
+                // show confirm button
+                document.getElementById('confirm').style = 'display:inline';
+                // hidden form elements?
+                document.getElementById('confim_id').value = user;
+                document.getElementById('confirm_role').value = 'seller';
+              }
+            }
+            else { 
+              // seller hasn't uploaded
+              document.getElementById('already_sent').style = 'display:inline';
+              // return ? 
+            }
+          }
+          else {
+            // assert haven't uploaded
+            // haven't asked
+            // ask_permission(user);
+            document.getElementById('check_messages').style = 'display:inline';
+            // return ? 
+          }
+          Document.getElementById('role').value = 'seller';
+        }
+        
+        MessengerExtensions.getContext("419937085114571",
+          function success(thread_context) {
+            let user = thread_context.psid;
+            // find whether user is buyer or seller
+            console.log('got context: continue');
+            let url = 'https://hospitable-quarter.glitch.me/transaction_info?txid=' + txid;
+            console.log(url);
+            fetch(url, { credentials: 'same-origin' })
+            .then((response) => {
+              if (!response.ok) throw Error(response.statusText);
+              return response.json();
+            })
+            .then((data) => {
+              // set displayed elements appropriately 
+              // perhaps check if both confirmed first (stage finished)
+              console.log('got data');
+              console.log(data);
+              let info = data.transaction;
+              document.getElementById('item').innerHTML = info.itemDescription;
+              document.getElementById('price').innerHTML = info.price;
+              if (info.seller === null || info.buyer === null){
+                console.log('in seller||buyer === null');
+                // ?
+              }
+              else if (info.buyer === user) {
+                buyer(info, user);
+              }
+              else if (info.seller === user) {
+                seller(info, user);
+              }
+              else {
+                // error
+              }
+            })
+            .catch(error => console.log(error));
+          },
+          function error(err) {
+            console.log("Error in getting context for Confirm and Continue");
+          }
+        );
+        // seller flow
+        // check whether the pdf has been uploaded
+        // buyer flow
+        // show them button to confirm, if they are second to confirm once clicked, shareflow
+        
+      };
+      
+      (function(d, s, id){
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) {return;}
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'Messenger'));
+    </script>
+    <!--<div id="notready" style="display:inline">
+      HasdfadasdfEither one party has not confirmed the transaction or the seller has not uploaded the item
+      <br> <button onclick="click()" value="Click Me">dfajhsdk</button>
+    </div>-->
+    <div id="complete" style="display:none">
+      Both parties have agreed to the transaction, this stage is complete.<br>
+      Please check if a more recent stage of the process has been shared in your chat.<br>
+    </div>
+    <div id="waiting" style="display:none">
+      We are currently waiting on the other party to send the money
+    </div>
+    <div id="already_sent" style="display:none">
+      We have sent you the item, please state whether or not it is valid<br>
+    </div>
+    <div id="payments" style="display:none">
+      We are waiting on you to send the money before releasing the item<br>
+    </div>
+    <div id="review" style="display:none">
+      Item is <span id="item">{item}</span>
+      Price is $<span id="price">{price}</span>
+      you are the <span id="role"></span>
+    </div>
+    <div id="confirm" style="display:none">
+      <button id="confirm_button" onclick="confirm()">
+        Confirm and Continue
+      </button>
+      <span id="confirm_id"></span>
+      <span id="confirm_role"></span>
+      
+    </div>
+    
+    <div id="in_script" style="display:none">
+      We are in the script
+    </div>
+    
+    <div id="payments" style="display:none">
+      <h2>
+        Connect With Stripe
+      </h2>
+      <p>
+        It looks like we don't know your payment information. For us to be able to complete your transaction, you must authorize us to use your Stripe account.
+      </p>
+      <a href="https://hospitable-quarter.glitch.me/authorize?redirect=https://hospitable-quarter.glitch.me/start_transaction?txid=<%- txid %>">
+          <button id="paymentBtn" class="btn btn-primary">
+            Pay with Stripe 
+          </button>
+      </a>
+    </div>
+    
+    
+  </body>
+</html>

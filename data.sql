@@ -1,6 +1,12 @@
 INSERT INTO flowStates (state, keyword, valueAction, nextstate) VALUES 
+(111, 'ANY', null, 111),
 (0, 'ANY', 'FILE', 1),
-(1, 'ANY' , null, 0)
+(1, 'ANY' , null, 0),
+
+(2, 'APPROVE', null, 4),
+(2, 'DENY', null, 5),
+(4, 'ANY', null, 2),
+(5, 'ANY', null, 2);
 
 /*
     (0, 'PAYMENTS', null, 1),
@@ -11,7 +17,7 @@ INSERT INTO flowStates (state, keyword, valueAction, nextstate) VALUES
     (5, 'ANY', null, 0),
     (6, 'NEW', 'NEW_TRANSACT', 7),
     (6, 'EXISTING', null, 14),
-    (7, 'ANY', 'BUYER', 8),
+    (7, 'ANY', 'BUYER', 8),R
     (8, 'ANY', 'SELLER', 9),
     (9, 'BUYER', null, 13),
     (9, 'SELLER', null, 10),
@@ -37,7 +43,12 @@ INSERT INTO flowStates (state, keyword, valueAction, nextstate) VALUES
     */
     
 INSERT INTO messages(state, messageType, message, options) VALUES 
-  (0, 'dynamic', 'TRANSACTION INFO HERE: ', 'SELLER_UPLOAD')
+  (111, 'text', 'Hi! I am an E-scrow bot to help you secure your transactions. Here is how I work: I secure a buyer-seller transaction by placing a temporary credit card hold on both the buyer and the seller. This hold is insurance for both parties against scammers. If anything goes wrong, our arbitrators will review your case and reimburse you for any damages you have endured. Please use our chat extension in a chat with your buyer or seller and we will message you if we need something.', ''),
+  (0, 'dynamic', 'TRANSACTION INFO HERE: ', 'SELLER_UPLOAD'), 
+  (1, 'text', 'Thank you for uploading your file. Your file will now be passed to the buyer for approval.', ''),
+  (2, 'dynamic', 'SHOW THE BUYER FILE', 'SHOW_FILE'), 
+  (4, 'text', 'You have approved the file! Your hold will be reimbursed and your payment will now be sent to the seller. Thank you for using E-scrow bot!', ''),
+  (5, 'text', 'You have denied this item. Our arbitrators will investigate your case and provide an unbiased decision on whether to reimburse money charged. Scammers will be charged the insurance hold previously charged. Check your chat with the seller to see the status of the dispute.', '');
 
 /*
     -- beginning general info

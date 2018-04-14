@@ -11,7 +11,6 @@
 'use strict';
 
 
-
 // Imports dependencies and set up http server
 const 
   s3 = require('./S3Manager.js'),
@@ -26,7 +25,8 @@ const
   consts = require('./const.js'),
   properties = require('./properties.js'),
   uuid = require('uuid/v4'),
-  fetch = require('node-fetch'),
+  helper = require('./helpers.js'),
+  session = require('express-session'),
   extension = require('./extension.js');
 
 const { check, validationResult } = require('express-validator/check');
@@ -35,6 +35,17 @@ const { matchedData, sanitize } = require('express-validator/filter');
 let db = dbInit.getDb();
 
 module.exports = app;
+
+app.use(body_parser.urlencoded({
+    extended: true
+}));
+
+/**bodyParser.json(options)
+ * Parses the text as JSON and exposes the resulting object on req.body.
+ */
+app.use(body_parser.json());
+
+app.use(session({ secret: 'e-scrow secret', cookie: { maxAge: 60000 }}))
 
 /*
 s3.initAWS(process);
@@ -51,6 +62,7 @@ app.post('/payments/submit', payments.sendCharge);
 app.get('/connect', payments.connect); 
 app.get('/authorize', payments.authorize); 
 app.get('/login', payments.login);
+app.get('/receiveLogin/:redirect', payments.receiveLogin); 
 
 app.get('/extension', extension.home);
 app.get('/start_transaction', extension.start_transaction);
@@ -60,14 +72,24 @@ app.post('/log', extension.log);
 app.post('/send_message', extension.send_message);
 app.post('/post_database', extension.database);
 
-app.use(body_parser.urlencoded({
-    extended: true
-}));
-
-/**bodyParser.json(options)
- * Parses the text as JSON and exposes the resulting object on req.body.
- */
-app.use(body_parser.json());
+app.post("/get_and_update_user", [
+    check('psid').exists()
+  ],
+  function (req, res) {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(422).json({ error : true, errors: errors.mapped() });
+      }
+  
+      let fullName = [];
+      helper.findName(request.psid)
+      .then((name) => {
+        fullName = name;
+        return helper.checkAndUpdateUser(name[0], name[1], request.psid)})
+      .then((dbRes) => {
+        return res.status(200).json({error : false, first_name : fullName[0], last_name : fullName[1]});
+      });
+});
 
 app.post("/submit_transaction", [
     check('sender_id').exists(),
@@ -90,52 +112,33 @@ app.post("/submit_transaction", [
       params.push(uuid().replace(/\-/g, ''));
       if (request['sender_is_buyer']) {
         params.push(request.sender_id);
+        params.push(1);
         params.push(null);
+        params.push(0);
       }
       else {
         params.push(null);
+        params.push(0);
         params.push(request.sender_id);
+        params.push(1);
       }
   
       params.push(request.price);
       params.push(request.item_description);
       params.push(request.group_id);
   
-      return dbHelp.runAsync("INSERT INTO transactions(txid, buyer, seller, price, itemDescription, groupId) VALUES(?,?,?,?,?,?)",
+      return dbHelp.runAsync("INSERT INTO transactions(txid, buyer, buyer_agreed, seller, seller_agreed, price, itemDescription, groupId) VALUES(?,?,?,?,?,?,?,?)",
                          params)
-      .then((dbRes) => {
-            let url = "https://graph.facebook.com/v2.6/".concat(request.sender_id).concat("?fields=first_name,last_name&access_token=419937085114571");
-        console.log(url);    
-        return fetch(url, {
-              credentials: 'same-origin',
-              method: 'GET',
-            }).then((response) => {
-              if (!response.ok) throw Error(response.statusText);
-              return response.json();
-            }).then((data) => {
-              return data;
-            }).catch(error => {return null;});
-      })
-      .then((data) => {
-         if (data) {
-           request.first_name = data.first_name;
-           request.last_name = data.last_name;
-         }
-         else {
-          request.first_name = "Not Found";
-           request.last_name = "Not Found";
-         }
-      })
-      .then(() => {
-        return dbHelp.runAsync("UPDATE users SET first_name=? WHERE psid=?", [request.first_name, request.sender_id]);
-      })
-      .then((dbRes) => {
-        return dbHelp.runAsync("UPDATE users SET last_name=? WHERE psid=?", [request.last_name, request.sender_id]);
-      })
+      .then((dbRes) => { return helper.findName(request.sender_id) })
+      .then((name) => {
+        request.first_name = name[0];
+        request.last_name = name[1];
+        return helper.checkAndUpdateUser(name[0], name[1], request.sender_id)})
       .then(function(dbRes) {
-        if (dbRes.changes) {
+        console.log(dbRes);
+        if (dbRes.changes == 1) {
           console.log(dbRes);
-          return res.send(JSON.stringify({error : false, txid : params[0]}));
+          return res.send(JSON.stringify({error : false, txid : params[0], first_name : request.first_name, last_name : request.last_name}));
         }
         else {
           throw "database not changed";
@@ -189,7 +192,7 @@ app.post("/set_price", function (req, res) {
 });
 
 app.post("/user_agree", [
-  check('role').exists().isIn(['BUYER', 'SELLER']),
+  check('role').exists().isIn(['buyer', 'seller']),
   check('psid').exists(),
   check('txid').exists()
 ],
@@ -211,14 +214,14 @@ app.post("/user_agree", [
         console.log(request)
         let transact = rows[0];
         let sqlToRun = null;
-        if (request.role === 'BUYER' && transact.buyer === request.psid) {
+        if (request.role === 'buyer' && transact.buyer === request.psid) {
           console.log("RUNNING BUYER AGRED");
           return dbHelp.runAsync("UPDATE transactions SET buyer_agreed=1 WHERE txid=?", [transact.txid]);
         }
-        else if (request.role === 'SELLER' && transact.seller === request.psid) {
+        else if (request.role === 'seller' && transact.seller === request.psid) {
           return dbHelp.runAsync("UPDATE transactions SET seller_agreed=1 WHERE txid=?", [transact.txid]);
         }
-        else if (request.role === 'SELLER' && transact.seller === null) {
+        else if (request.role === 'seller' && transact.seller === null) {
          if (request.psid === transact.buyer) 
            throw "Buyer cannot be seller";
           
@@ -236,7 +239,7 @@ app.post("/user_agree", [
              throw err;
            });
         }
-        else if (request.role == 'BUYER' && transact.buyer === null) {
+        else if (request.role == 'buyer' && transact.buyer === null) {
           if (request.psid === transact.seller) 
             throw "Buyer cannot be Seller";
           
@@ -271,10 +274,40 @@ app.post("/user_agree", [
       });
 });
 
+app.post("/user_disagree", [
+  check('role').exists().isIn(['buyer', 'seller']),
+  check('psid').exists(),
+  check('txid').exists()
+],
+  function (req, res) {
+    //const errors = validationResult(req);
+    //console.log(errors);
+    //if (!errors.isEmpty()) {
+    //  return res.status(422).json({ error : true, errors: errors.mapped() });
+    //}
+    console.log("about to delete transaction");
+    // matchedData returns only the subset of data validated by the middleware
+    const request = req.body;
+    console.log(request.txid);
+    return dbHelp.runAsync("DELETE from transactions WHERE txid=?", [request.txid])
+    .then(function (dbRes) {
+        console.log(dbRes);
+        if (dbRes.changes === false)
+          throw "No such transaction" 
+
+        return res.send(JSON.stringify({error : false, successMessage : "Succesfully deleted transaction"}));
+    })
+    .catch(function (err) {
+      console.log(err);
+      return res.send(JSON.stringify({error : true, errorMessage : err}));
+    });
+});
+
 // check if current user's payment information is stored in db
 app.post('/checkUser', function (req, res) {
-    let psid = req.body.psid
-    
+    let psid = req.body.psid;
+    console.log('got checkUser request');
+    console.log('psid received by /checkUser: ' + psid);
     return dbHelp.allAsync("SELECT * FROM users WHERE psid=?", [psid])
     .then(function(rows) {
       return res.send(JSON.stringify({error: false, userPresent: rows.length == 1}));
@@ -286,7 +319,7 @@ app.post('/checkUser', function (req, res) {
 
 // check if current user's payment information is stored in db
 app.post('/getStripeID', function (req, res) {
-    let psid = req.body.psid
+    let psid = req.body.psid;
     
     return dbHelp.allAsync("SELECT stripe_id, auth_token FROM users WHERE psid=?", [psid])
     .then(function(rows) {
@@ -299,8 +332,8 @@ app.post('/getStripeID', function (req, res) {
 
 // check if current user's payment information is stored in db
 app.post('/insertStripeInfo', function (req, res) {
-    let psid = req.body.psid
-    let stripe_id = req.body.stripe_id
+    let psid = req.body.psid;
+    let stripe_id = req.body.stripe_id;
     
     return dbHelp.allAsync("UPDATE users SET stripe_id=? WHERE psid=?", [stripe_id, psid])
     .then(function(rows) {
@@ -312,7 +345,7 @@ app.post('/insertStripeInfo', function (req, res) {
 });
 
 app.post('/update_transaction', [ 
-        check('role').exists().isIn(['BUYER', 'SELLER']), 
+        check('role').exists().isIn(['buyer', 'seller']), 
         check('psid').exists(), 
         check('txid').exists()],
   function (req, res) {
@@ -330,42 +363,21 @@ app.post('/update_transaction', [
            throw "No such transaction" 
         
         let transact = rows[0]
-        if (request.role === 'BUYER' && transact.buyer !== null) 
+        if (request.role === 'buyer' && transact.buyer !== null) 
            throw "BUYER already set";
           
-        if (request.role === 'SELLER' && transact.seller !== null)
+        if (request.role === 'seller' && transact.seller !== null)
             throw "Seller already set";
       })
-      .then((dbRes) => {
-            let url = "https://graph.facebook.com/v2.6/".concat(request.sender_id).concat("?fields=first_name,last_name&access_token=419937085114571");
-            return fetch(url, {
-              credentials: 'same-origin',
-              method: 'GET',
-            }).then((response) => {
-              if (!response.ok) throw Error(response.statusText);
-              return response.json();
-            }).then((data) => {
-              return data;
-            }).catch(error => {throw error;});
+      .then(() => { return helper.findName(request.sender_id); })
+      .then((name) => {
+        return helper.checkAndUpdateUser(name[0], name[1], request.psid);
       })
-      .then((data) => {
-         request.first_name = data.first_name;
-         request.last_name = data.last_name;
-      })
-      .then(function () {
-        if (request.role === 'BUYER')
+      .then(function (dbRes) {
+        if (request.role === 'buyer')
           return dbHelp.runAsync("UPDATE transactions SET BUYER=? WHERE txid=?", [request.psid, request.txid]);
         else
           return dbHelp.runAsync("UPDATE transactions SET SELLER=? WHERE txid=?", [request.psid, request.txid]);
-      })
-      .then(function (dbRes) {
-          if (dbRes.changes === false)
-            throw "Could not update transaction";
-        
-           return dbHelp.runAsync("UPDATE users SET first_name=? WHERE psid=?", [request.first_name, request.psid])
-            .then((dbRes) => {
-              return dbHelp.runAsync("UPDATE users SET last_name=? WHERE psid=?", [request.last_name, request.psid]);
-            })
       })
       .then(function (dbRes) {
           return res.send(JSON.stringify({error : dbRes.changes ? false : true}));

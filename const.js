@@ -38,11 +38,17 @@ const DYNAMIC_ACTIONS = {
           throw "Too many or no such conversation"
        
        let txid = rows[0]['txid'];
-       return db.runAsync("SELECT * from transactions WHERE txid=?", [txid]);
+       return db.runAsync("SELECT * from transactions WHERE txid=? JOIN users ON transaction.buyer = users.psid", [txid]);
      })
-     .then(function (row) {
-       let string = "Hello!, you've agreed to a transaction on E-scrow bot. Here is some basic information"
-       
+     .then(function (rows) {
+       console.log(rows);
+       let transact = rows[0]
+       let string = "Hello!, you've agreed to a transaction on E-scrow bot. Here is some basic information: "
+       string.concat(`BUYER: ${transact['buyer']}\n`);
+       string.concat(`PRICE: ${transact['price']}\n`);
+       string.concat(`ITEM DESCRIPTION: ${transact['itemDescription']}\n`);
+       string.concat("Please upload your item for buyer approval.");
+       ui.sendText(senderId, string);
      })
      .catch(err => {
        ui.sendText(senderId, "Please upload your item so that we can forward it to the sender.");
@@ -98,7 +104,7 @@ const endState = 22;
 
 module.exports = {
  PAGE_ACCESS_TOKEN : process.env.PAGE_ACCESS_TOKEN, 
-  START_STATE : 0,
+  START_STATE : 111,
   BUYER_INCOMPLETE_STATE: 15,
   SELLER_INCOMPLETE_STATE: 17,
   BUYER_WAITING_STATE: 13,

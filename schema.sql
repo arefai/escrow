@@ -30,8 +30,8 @@ CREATE TABLE flowStates (
 );
 CREATE TABLE users (
         psid INTEGER PRIMARY KEY,
-        first VARCHAR(128),
-        last VARCHAR(128),
+        first_name VARCHAR(128),
+        last_name VARCHAR(128),
         stripe_id INTEGER,
         auth_token INTEGER
 );

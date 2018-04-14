@@ -4,6 +4,56 @@
     <title>Share Escrow Bot</title>
     <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
     <!--<script src="/js/main.js"></script>-->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    
+    <script>
+      let txid;
+      let psid;
+      function showPaymentsOrForm(thread_context) {
+        console.log('showPaymentsOrForm called');
+        fetch("https://hospitable-quarter.glitch.me/checkUser", {
+          body: JSON.stringify({psid : thread_context.psid}), // must match 'Content-Type' header
+          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+          credentials: 'same-origin', // include, same-origin, *omit
+          headers: {
+            'user-agent': 'Mozilla/4.0 MDN Example',
+            'content-type': 'application/json'
+          },
+          method: 'POST', // *GET, POST, PUT, DELETE, etc.
+          mode: 'cors', // no-cors, cors, *same-origin
+          redirect: 'follow', // *manual, follow, error
+          referrer: 'no-referrer', // *client, no-referrer
+        })
+        .then((response) => function(response) {return response.json();})
+        .then((data) => {
+          console.log('checked user great success');
+          //if (data.user_present){
+            $("#maindiv").show();
+           $("#payments").show();
+        })
+        }
+      
+      function showError(err) {
+         console.log(err);
+         $("#errorMessage").show();
+      }
+      
+      function sendToStripe() {
+        MessengerExtensions.getContext("419937085114571", function (thread_context) {
+         let psid = thread_context.psid;
+         console.log("PSID" + psid);
+         let url = "https://hospitable-quarter.glitch.me/authorize?redirect=https://hospitable-quarter.glitch.me/receiveLogin/begin"
+         url = url.concat("&psid=").concat(psid);
+         console.log(url);
+         window.location.replace(url);
+        },
+        function (err) {
+          console.log(err);
+        });
+                                
+      }
+    
+    </script>
   </head>
   <body>
     <div id="content"></div>
@@ -38,28 +88,17 @@
         console.log('dosomething called');
         let button = document.getElementById('submitbutton');
         button.disabled = true; 
-        button.value = "Loading..";
+        button.value = "Loading...";
         
         let price = document.getElementById('number').value;
         let description = document.getElementById('description').value;
         let roles = document.getElementsByName('role');
-        let role_string = '';
-        for (let i = 0, length = roles.length; i < length; ++i){
-          if (roles[i].checked){
-            role_string = roles[i].value;
-            break;
-          }
-        }
+        let role_string = $("input[name=user_role]:checked").val();
+        console.log("role: " + role_string);
         // assert role string not empty
         let title_string = '';
-        let buyer = false;
-        if (role_string === 'seller'){
-          title_string = "x wants to sell " + description + " to you for " + price; // parse int to string?
-        }
-        else {
-          buyer = true;
-          title_string = "Amir wants to buy " + description + " from you for $" + price; // parse int to string?
-        }/*
+        let buyer = role_string !== 'seller';
+        /*
         let data = {
           sender_id: 'string',
           group_id: 'string',
@@ -69,6 +108,7 @@
         };*/
         MessengerExtensions.getContext("419937085114571",
           function success(thread_context) {
+            console.log('got context');
             console.log(thread_context.type);
             let data = {
               sender_id: thread_context.psid,
@@ -77,6 +117,61 @@
               sender_is_buyer: buyer,
               item_description: description,
             };
+            function ask_profile(psid) {
+              MessengerExtensions.getGrantedPermissions(function (permissions_response) {
+                if (permissions_response.permission.indexOf('user_profile') > -1) {
+                  // return getName();
+                }
+                else {
+                  MessengerExtensions.askPermission(
+                    function (permission_response) {
+                      if (permission_response.permissions.indexOf('user_profile') > -1) {
+                        // return getName();
+                      }
+                      else {
+                        console.log('permission denied');
+                      }
+                    }, function(errorCode, errorMessage) {
+                      console.log('user_profile permission denied');
+                    },
+                    'user_profile'
+                  );
+                }
+              }, function () {
+                console.log('error getting granted permissions');
+              });
+            }
+            function ask_messaging(psid) {
+              console.log('ask_messaging called');
+              MessengerExtensions.getGrantedPermissions(function (permissions_response) {
+                if (permissions_response.permission.indexOf('user_messaging') > -1) {
+                  // return getName();
+                }
+                else {
+                  MessengerExtensions.askPermission(
+                    function (permission_response) {
+                      if (permission_response.permissions.indexOf('user_messaging') > -1) {
+                        // return getName();
+                      }
+                      else {
+                        console.log('permission denied');
+                      }
+                    }, function(errorCode, errorMessage) {
+                      console.log('user_messaging permission denied');
+                    },
+                    'user_messaging'
+                  );
+                }
+              }, function () {
+                console.log('error getting granted permissions');
+              });
+            }
+            console.log()
+            if (!buyer){
+              ask_messaging(thread_context.psid);
+            }
+            ask_profile(thread_context.psid);
+            console.log(data);
             fetch('https://hospitable-quarter.glitch.me/submit_transaction', {
               body: JSON.stringify(data), // must match 'Content-Type' header
               cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
@@ -92,9 +187,12 @@
             }).then((response) => {
               if (!response.ok) throw Error(response.statusText);
               return response.json();
-            }).then((data) => {
-              console.log(data);
-              send_template(data.txid);
+            }).then((resData) => {
+              data.txid = resData.txid;
+              data.first_name = resData.first_name;
+              data.last_name = resData.last_name;
+              console.log("Sending template...");
+              send_template(data);
             }).catch(error => console.log(error));
             
           },
@@ -103,35 +201,53 @@
           }
         );
         
-        function send_template(txid) {
+        function send_template(data) {
           console.log('send_template called');
-          url = "https://hospitable-quarter.glitch.me/start_transaction?txid="+txid;
+          let url = "https://hospitable-quarter.glitch.me/start_transaction?txid=".concat(data.txid);
           console.log(url);
+          let title = '';
+          if (data.sender_is_buyer) {
+            title = `${data.first_name} ${data.last_name} wants to buy ${data.item_description} from you for $${data.price}`;
+          }
+          else {
+            title = `${data.first_name} ${data.last_name} wants to sell you ${data.item_description} for $${data.price}`;
+          }
+          console.log(title);
           let message = {
             "attachment":{
               "type":"template",
               "payload":{
-                "template_type":"generic",
+                "template_type": 'generic',
                 "elements": [{
-                  "title":title_string,//`${role_string} wants to ${action_string1} ${description} ${action_string2} you`,
+                  "title": title,
                   "image_url": "https://ivycoach.com/content/uploads/2011/07/University-Of-Michigan-Admissions-Stats.jpg",
-                  "subtitle": "Escrow Messenger Bot is a safe way to make transactions on Facebook Marketplace",
+                  "subtitle": "E-scrow bot is a safe way to buy and sell items on Facebook Marketplace",
                   "default_action":{
+                    "messenger_extensions": true,
                     "type":"web_url",
-                    "url":url
+                    "url": url,
+                    "webview_height_ratio":"tall",
                   },
                   "buttons":[{
                     "messenger_extensions": true,
                     "type":"web_url",
-                    "url":url, // ?txid=?
-                    "webview_height_ratio":"tall",
-                    "title":"Review and Continue"
+                    "url": url,
+                    "webview_height_ratio":"compact",
+                    "title":"Accept or Decline"
                   }]
-                  // todo add other buttons back
                 }]
               }
             }
           };
+          
+          /*
+          console.log(message);
+          console.log(message.attachment.payload);
+          console.log(message.attachment.payload.elements);
+          console.log(message.attachment.payload.elements[0].default_action);
+          console.log(message.attachment.payload.elements[0].buttons);*/
+          
+          console.log('Starting share flow');
           MessengerExtensions.beginShareFlow(function(share_response) {
             // post json about transaction
 
@@ -153,12 +269,13 @@
           function(errorCode, errorMessage) {      
             // An error occurred in the process
             console.log('shareflow error');
-            document.getElementById('asdf3').style="display:inline";
+            console.log(errorCode);
+            console.log(errorMessage);
           },
           message,
           "current_thread");
         }
-        }
+      }
         
           
       window.extAsyncInit = function() {
@@ -166,8 +283,8 @@
         // document.write('about to load buttonasdf');
         // window.loadButton();
         // document.write('making button visible');
-        let b = document.getElementById('maindiv');
-        b.style='display:inline';
+        console.log('extAsyncInit called');
+        MessengerExtensions.getContext("419937085114571", showPaymentsOrForm, showError);
         console.log('messenger extensions js sdk loaded');
         
       };
@@ -197,31 +314,34 @@
         <div class="form-group">
           <span>I am the:</span><br>
           <div class="radio">
-            <label><input type="radio" name="optradio" value="buyer"> Buyer</label>
+            <label><input type="radio" name="user_role" value="buyer"> Buyer</label>
           </div>
           <div class="radio">
-            <label><input type="radio" name="optradio" value="seller"> Seller <br></label>
+            <label><input type="radio" name="user_role" value="seller"> Seller <br></label>
           </div>
         </div>
         <button id="submitbutton" class="btn btn-default" onclick="dosomething()">
           Submit
-        </button><br>
-        <button id="paymentBtn" class="btn btn-default" href="https://hospitable-quarter.glitch.me/connect">
-          Pay with Stripe 
-        </button>
+        </button><br><br>
       </div>
     </div>
-    <div id="asdf" style="display:none">
-       shareflow reached
+    <div id="payments" style="display:none">
+      <h2>
+        Connect With Stripe
+      </h2>
+      <p>
+        It looks like we don't know your payment information. For us to be able to complete your transaction, you must authorize us to use your Stripe account.
+      </p>
+      <a href="javscript:void(0);" onclick="sendToStripe()">
+          <button id="paymentBtn" class="btn btn-primary">
+            Pay with Stripe 
+          </button>
+      </a>
     </div>
-    <div id="asdf2" style="display:none">
-       about to close browser
-    </div>
-    <div id="asdf3" style="display:none">
-       failure
-    </div>
-    <div id="asdf4" style="display:none">
-       about to
+    <div id="errorMessage" style="display:none;">
+      <p>
+        Sorry, we had encountered an issue with our server. Please try again later or contact eecs497fbms@umich.edu
+      </p>
     </div>
   </body>
 </html>
