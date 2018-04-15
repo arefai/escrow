@@ -17,10 +17,32 @@ var car = {
   color:"white"
 };
 
-
+function sendCustom(psid, message) {
+  let body = {
+    "recipient": {
+      "id": psid
+    },
+    "message": message
+  };
+  // Send the HTTP request to the Messenger Platform
+  request({
+    "uri": "https://graph.facebook.com/v2.6/me/messages",
+    "qs": { "access_token": consts.PAGE_ACCESS_TOKEN },
+    "method": "POST",
+    "json": body,
+  }, 
+  (err, res, body) => {
+    if (!err) {
+      console.log('custom message sent!');
+    } 
+    else {
+      console.error("Unable to send message:" + err);
+    }
+  }); 
+}
 // Sends response messages via the Send API
 function sendText(sender_psid, response) {
-    // Construct the message body
+  // Construct the message body
   console.log("SENDER ID" + sender_psid);
   console.log(response);
   

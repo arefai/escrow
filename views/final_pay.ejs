@@ -1,0 +1,140 @@
+
+<html>
+  <head>
+   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script> 
+  </head>
+  <body>
+    
+    <script> 
+      var txid = '<%- txid %>';
+      (function(){
+        var oldLog = console.log;
+        console.log = function (message) {
+          // document.write('message: ' + message);
+          // document.write(typeof(message));
+          // message = String(message);
+          return fetch('https://hospitable-quarter.glitch.me/log', {
+            body: JSON.stringify({text: message}), // must match 'Content-Type' header
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, same-origin, *omit
+            headers: {
+              'user-agent': 'Mozilla/4.0 MDN Example',
+              'content-type': 'application/json'
+            },
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, cors, *same-origin
+            redirect: 'follow', // *manual, follow, error
+            referrer: 'no-referrer', // *client, no-referrer
+          })
+          .then(function(response) {return response.json()}) // parses response to JSON
+          oldLog.apply(console, arguments);
+        };
+      })();
+      
+      function SubForm(){
+        console.log('subform called');
+        let link = '<%- link %>';
+        link = link.concat(user);
+        console.log("link is: " + link);
+        $.ajax({
+          url:link,
+          type:'post',
+          data:$('#chargeForm').serialize(),
+          success:function(){
+            shareFlow();
+          }
+        });
+      }
+      
+      function sendText (message) {
+        let req = 'https://hospitable-quarter.glitch.me/send_buyer_message';
+        let body = {
+          psid: user,
+          txid: txid,
+          message: message
+        };
+        fetch(req, {
+          body: JSON.stringify(body), // must match 'Content-Type' header
+          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+          credentials: 'same-origin', // include, same-origin, *omit
+          headers: {
+            'user-agent': 'Mozilla/4.0 MDN Example',
+            'content-type': 'application/json'
+          },
+          method: 'POST', // *GET, POST, PUT, DELETE, etc.
+          mode: 'cors', // no-cors, cors, *same-origin
+          redirect: 'follow', // *manual, follow, error
+          referrer: 'no-referrer', // *client, no-referrer
+        });
+      }
+      
+      window.extAsyncInit = function() {
+        function show(psid) {
+            let url = 'https://hospitable-quarter.glitch.me/transaction_info?txid=' + txid;
+            fetch(url, { credentials: 'same-origin' })
+            .then((response) => {
+              if (!response.ok) throw Error(response.statusText);
+              return response.json();
+            })
+            .then((data) => {
+              if (data.itemLink === null) {
+                 $("#seller_upload").show();
+              }
+              else {
+                if (data.seller === psid) {
+                   $("#payNow").show();
+                   $("#seller_pay").show();
+                }
+                else {
+                  $("#payNow").show();
+                  $("#buyer_pay").show();
+                }
+              }
+            });
+          
+        }
+
+      }
+      (function(d, s, id){
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) {return;}
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'Messenger'));
+  </script>
+
+
+
+
+
+    <div id="payNow" style="display:none;">
+      <div id="buyer_pay" style="display:none;">
+          <p>
+            Please submit your payment for the item using the button below. We will charge your stripe account for the agreed upon price plus an insurance hold. BOTH parties will be charged
+           this hold. This hold guarantees your security in this transaction. In the case of a scam, the holds will be used to reimburse you for damages.
+          </p>  
+       </div>
+       <div id="seller_pay" style="display:none;">
+         <p>
+           Please submit a payment for our insurance hold. This is a temporary hold that will be reimbursed upon transaction completion. BOTH parties will be charged
+           this hold. This hold guarantees your security in this transaction. In the case of a scam, the holds will be used to reimburse you for damages.
+         </p>
+       </div>
+        <form id="chargeForm" action="javascript:SubForm();" method="POST">
+          <script
+            src="https://checkout.stripe.com/checkout.js" class="stripe-button"
+            data-key="pk_test_SfFEOJ30IbciexZavBVyQoZk"
+            data-name="Escrow Bot"
+            data-amount="<%= amount %>"
+            data-description="Escrow Payment"
+            data-zip-code="true"
+            data-image="https://stripe.com/img/documentation/checkout/marketplace.png"
+            data-locale="auto">
+          </script>
+        </form>
+    </div>
+
+</body>
+
+</html>

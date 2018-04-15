@@ -4,11 +4,24 @@
     <title>Share Escrow Bot</title>
     <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script>
+      var user = '';     
+      var psid = '';
+      var shareFlow;
+      function sendToStripe() {
+         console.log("hellllooo");
+         MessengerExtensions.getContext("419937085114571", function (thread_context) {
+           psid = thread_context.psid;
+           let url = "https://hospitable-quarter.glitch.me/authorize?redirect=https://hospitable-quarter.glitch.me/receiveLogin/start_transaction";
+           url = url.concat("&psid=").concat(psid);
+           url = url.concat("&txid=").concat(txid);
+           window.location.replace(url);
+        }, (err) => {console.log(err);});
+      }
+      
+    </script>
   </head>
   <body>
-    <div id="test">
-      kajsdfjkasdhjgajsdklgfadsjhadlsf
-    </div>
     <script>var txid = <%- JSON.stringify(txid) %>;</script>
     <script>
       // document.getElementById('in_script').style='display:inline';
@@ -41,11 +54,30 @@
       // Sends response messages via the Send API
       console.log('hello');
       let x = txid;
+      // let user = '';
+      var role = '';
       // console.log(txid);
-      function sendText (psid, message) {
+      
+      function SubForm(){
+        console.log('subform called');
+        let link = '<%- link %>';
+        link = link.concat(user);
+        console.log("link is: " + link);
+        $.ajax({
+          url:link,
+          type:'post',
+          data:$('#chargeForm').serialize(),
+          success:function(){
+            shareFlow();
+          }
+        });
+      }
+      
+      function sendText (message) {
         let req = 'https://hospitable-quarter.glitch.me/send_message';
         let body = {
-          psid: psid,
+          psid: user,
+          txid: txid,
           message: message
         };
         fetch(req, {
@@ -62,84 +94,59 @@
           referrer: 'no-referrer', // *client, no-referrer
         });
       }
+      function redirect_to_payments() {
+          let url = "https://hospitable-quarter.glitch.me/payments?";
+          url = url.concat("psid=").concat(user);
+          url = url.concat("&txid=").concat(txid);
+          url = url.concat("&user=").concat(role);
+          url = url.concat("&redirect_url=").concat("https://hospitable-quarter.glitch.me/redirect");
+          url = url.concat("?txid=").concat(txid);
+          
+          console.log(url);
+          window.location.replace(url);
+        }
+      
       function confirm() {
         // post to server id/role of confirming user
         // on receive, parse json, check if both_agreed
         // if yes: shareflow to process payments
         // if no: close browser
+        
         let data = {
-          psid: document.getElementById('confirm_id').value,
-          role: document.getElementById('confirm_role').value,
+          psid: user,
+          role: role,
           txid: txid,
         };
+        console.log(data);
+
         let url = 'https://hospitable-quarter.glitch.me/user_agree';
         console.log(url);
+        console.log('about to send confirm');
         fetch(url, {
-          credentials: 'same-origin',
-          header: new Headers({ 'Content-Type': 'application/json' }),
-          method: 'POST',
-          body: JSON.stringify(strdata),
+          body: JSON.stringify(data), // must match 'Content-Type' header
+          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+          credentials: 'same-origin', // include, same-origin, *omit
+          headers: {
+            'user-agent': 'Mozilla/4.0 MDN Example',
+            'content-type': 'application/json'
+          },
+          method: 'POST', // *GET, POST, PUT, DELETE, etc.
+          mode: 'cors', // no-cors, cors, *same-origin
+          redirect: 'follow', // *manual, follow, error
+          referrer: 'no-referrer', // *client, no-referrer
         }).then((response) => {
           if (!response.ok) throw Error(response.statusText);
           return response.json();
-        }).then((data) => {
-          if (data.share_flow) {
-            let url = "https://hospitable-quarter.glitch.me/payments" + txid;
-            let message = {
-              "attachment":{
-                "type":"template",
-                "payload":{
-                  "template_type":"generic",
-                  "elements": [{
-                    "title":"Transaction Agreed to, now click to pay",
-                    "image_url": "https://ivycoach.com/content/uploads/2011/07/University-Of-Michigan-Admissions-Stats.jpg",
-                    "subtitle": "SUBTITLE",
-                    "default_action":{
-                      "type":"web_url",
-                      "url": url,
-                      "messenger_extensions": true,
-                      "webview_height": "tall",
-                    },
-                    "buttons":[{
-                      "messenger_extensions": true,
-                      "type":"web_url",
-                      "url":status_url, // ?txid=?
-                      "webview_height_ratio":"tall",
-                      "title":"Process Payment"
-                    },{
-                      "messenger_extensions": true,
-                      "type":"web_url",
-                      "url":status_url, // ?txid=?
-                      "webview_height_ratio":"tall",
-                      "title":"Check Status"
-                    }]
-                  }]
-                }
-              }
-            };
-            MessengerExtensions.beginShareFlow(function(share_response) {
-              // User dismissed without error, but did they share the message?
-              if(response.is_sent === true){ 
-                // User shared. We're done here!
-                MessengerExtensions.requestCloseBrowser();
-                console.log('success');
-              }
-              else{
-                // User canceled their share! 
-                // try again?
-              }
-            }, 
-            function(errorCode, errorMessage) {      
-              // An error occurred in the process
-              console.log('error');
-            },
-            message, 
-            "current_thread");
-          }
-          else {
-            MessengerExtensions.requestCloseBrowser(null, null);
-          }
+        }).then((data) => {  
+          $("#confirm").hide();
+          $("#payNow").show();
+          if (role === 'buyer')
+            $("#buyer_pay").show();
+          else
+            $("#seller_pay").show();
+          
         }).catch(error => console.log(error));
+        
       }
       
       function deny() {
@@ -157,10 +164,17 @@
         let url = 'https://hospitable-quarter.glitch.me/user_disagree';
         console.log(url);
         fetch(url, {
-          credentials: 'same-origin',
-          header: new Headers({ 'Content-Type': 'application/json' }),
-          method: 'POST',
-          body: JSON.stringify(data),
+          body: JSON.stringify(data), // must match 'Content-Type' header
+          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+          credentials: 'same-origin', // include, same-origin, *omit
+          headers: {
+            'user-agent': 'Mozilla/4.0 MDN Example',
+            'content-type': 'application/json'
+          },
+          method: 'POST', // *GET, POST, PUT, DELETE, etc.
+          mode: 'cors', // no-cors, cors, *same-origin
+          redirect: 'follow', // *manual, follow, error
+          referrer: 'no-referrer', // *client, no-referrer
         }).then((response) => {
           if (!response.ok) throw Error(response.statusText);
           return response.json();
@@ -181,20 +195,14 @@
                       "type":"web_url",
                       "url": url,
                       "messenger_extensions": true,
-                      "webview_height": "tall",
+                      "webview_height_ratio": "tall",
                     },
                     "buttons":[{
                       "messenger_extensions": true,
                       "type":"web_url",
-                      "url":status_url, // ?txid=?
+                      "url":url,
                       "webview_height_ratio":"tall",
                       "title":"Process Payment"
-                    },{
-                      "messenger_extensions": true,
-                      "type":"web_url",
-                      "url":status_url, // ?txid=?
-                      "webview_height_ratio":"tall",
-                      "title":"Check Status"
                     }]
                   }]
                 }
@@ -227,11 +235,70 @@
       }
       
       window.extAsyncInit = function() {
-        console.log(MessengerExtensions);
-        console.log('messenger extensions sdk loaded');
+        
+              
+        shareFlow = function() {
+          console.log("Share flow");
+          let url = "https://hospitable-quarter.glitch.me/payments?txid=" + txid;
+          let message = {
+            "attachment":{
+              "type":"template",
+              "payload":{
+                "template_type":"generic",
+                "elements": [{
+                  "title":"Transaction Agreed to, now click to pay",
+                  "subtitle": "SUBTITLE",
+                  "default_action":{
+                    "type":"web_url",
+                    "url": url,
+                    "messenger_extensions": true,
+                    "webview_height_ratio": "tall",
+                  },
+                  "buttons":[{
+                    "messenger_extensions": true,
+                    "type":"web_url",
+                    "url":url, 
+                    "webview_height_ratio":"tall",
+                    "title":"Process Payment"
+                  }]
+                }]
+              }
+            }
+          };
+          console.log("About to do messenger extensions share flow");
+          console.log(MessengerExtensions);
+          MessengerExtensions.beginShareFlow(function(share_response) {
+            // User dismissed without error, but did they share the message?
+            if(share_response.is_sent === true){ 
+              // User shared. We're done here!
+              MessengerExtensions.requestCloseBrowser();
+              console.log('success');
+
+              if (role === 'seller') {
+                console.log('about to send message');
+                sendText('Upload your pdf here.');
+              }
+            }
+            else{
+              // User canceled their share! 
+              // try again?
+              console.log('asdhfalsdfjlasdjkfajhksldfhlajksdfhjklasjklfajkhld');
+            }
+          }, 
+          function(errorCode, errorMessage) {      
+            // An error occurred in the process
+            console.log(errorCode);
+            console.log(errorMessage);
+            console.log('error');
+          },
+          message, 
+          "current_thread");
+        }
+        
+        
         function send_private_message() {
           console.log('in send_pm');
-          let user = '';
+          //user = '';
           MessengerExtensions.getContext("419937085114571",
             function success(thread_context) {
               console.log(thread_context.type);
@@ -247,7 +314,7 @@
             }
           );
         }
-        function ask_profile(psid) {
+        function ask_profile() {
           MessengerExtensions.getGrantedPermissions(function (permissions_response) {
             if (permissions_response.permission.indexOf('user_profile') > -1) {
               // return getName();
@@ -271,7 +338,7 @@
             console.log('error getting granted permissions');
           });
         }
-        function ask_messaging(psid) {
+        function ask_messaging() {
           console.log('ask_messaging called');
           MessengerExtensions.getGrantedPermissions(function (permissions_response) {
             if (permissions_response.permission.indexOf('user_messaging') > -1) {
@@ -296,13 +363,27 @@
             console.log('error getting granted permissions');
           });
         }
-        function buyer(info, user) {
+        function buyer(info) {
+          role = 'buyer';
           console.log('user is buyer');
+          console.log(info);
           // buyer
           document.getElementById('role').innerHTML = 'buyer';
           document.getElementById('review').style = 'display:inline'; // worth factoring out?
-          if (info.buyer_confirmed) { // factor out to function with (other_confirmed, you_confirmed)
-            if (info.seller_confirmed) {
+          
+          if (!info.seller_agreed) {
+            //$("#payNow").hide();
+            $("#waiting").show();
+            return;
+          }
+          
+          if (info.buyer_agreed) { // factor out to function with (other_confirmed, you_confirmed)
+            if (info.buyer_paid === 0) {
+                $("#confirm").hide();
+                $("#buyer_pay").show();
+                $("#payNow").show();
+            }
+            else if (info.seller_agreed) {
               // this stage is complete
               document.getElementById('complete').style = 'display:inline';
             }
@@ -333,74 +414,64 @@
             console.log('done with consoling2');
           }
         }
-        function seller(info, user) {
+        function seller(info) {
+          role = 'seller';
           console.log('user is seller');
-          if (info.seller_confirmed){
-            if (!info.seller_uploaded){
-              if (!info.asked_seller) {
-                
+          console.log(info);
+          
+          if (!info.buyer_agreed) {
+            $("#waiting").show();
+            return;
+          }
+          
+          if (info.seller_agreed){
+            // console.log(info.itemLink);
+            if (!info.itemLink !== null){
+              if (info.seller_paid === 0) {
+                $("#confirm").hide();
+                $("#seller_pay").show();
+                $("#payNow").show();
+              }
+              else if (!info.asked_seller) {
+                sendText('upload your pdf');
               }
               else {
                 $('#check_messages').show();
               }
             }
             else {
-              $('#complete').show();
+              if (!info.buyer_agreed) {
+                $('#waiting').show();
+              }
+              else {
+                $('#complete').show();
+              }
             }
           }
           else {
             $('#confirm').show();
             // hidden form elements?
-            console.log('showing confirm/deny');
             $('#confim_id').html(user);
+            console.log($('#confirm_id').html())
             $('#confirm_role').html('seller');
-          }
-          if (info.asked_seller) {
-            if (info.seller_uploaded){
-              document.getElementById('review').style = 'display:inline';
-              if (info.seller_confirmed) { // factor this out to a function
-                if (info.buyer_confirmed) {
-                  // this stage is complete
-                  document.getElementById('complete').style = 'display:inline';
-                }
-                else {
-                  document.getElementById('waiting').style = 'display:inline';
-                  document.getElementById('waiting_on').value = 'Buyer';
-                }
-              }
-              else {
-                // show confirm button
-                document.getElementById('confirm').style = 'display:inline';
-                // hidden form elements?
-                console.log('showing confirm/deny');
-                document.getElementById('confim_id').innerHTML = user;
-                document.getElementById('confirm_role').innerHTML = 'seller';
-              }
-            }
-            else { 
-              // seller hasn't uploaded
-              document.getElementById('already_sent').style = 'display:inline';
-              // return ? 
-            }
-          }
-          else {
-            // assert haven't uploaded
-            // haven't asked
-            // ask_permission(user);
-            document.getElementById('check_messages').style = 'display:inline';
-            // return ? 
           }
           Document.getElementById('role').value = 'seller';
         }
-        function update_transaction(user, role) {
+        
+        function update_transaction(role) {
+          console.log('update_transaction called');
           if (role === 'seller') {
-            ask_messaging(user);
+            ask_messaging();
           }
-          ask_profile(user);
+          ask_profile();
           data = {
             psid: user, 
+            txid: txid,
             role: role,
           };
+          console.log('psid:'.concat(data.psid));
+          console.log('txid:'.concat(data.txid));
+          console.log('role:'.concat(data.role));
           url = 'https://hospitable-quarter.glitch.me/update_transaction'
           fetch(url, {
             body: JSON.stringify(data), // must match 'Content-Type' header
@@ -421,9 +492,8 @@
             console.log(data);
           }).catch(error => console.log(error));
         }
-        MessengerExtensions.getContext("419937085114571",
-          function success(thread_context) {
-            let user = thread_context.psid;
+        function showMainDiv(thread_context) {
+            user = thread_context.psid;
             // find whether user is buyer or seller
             console.log('got context: continue');
             let url = 'https://hospitable-quarter.glitch.me/transaction_info?txid=' + txid;
@@ -439,6 +509,7 @@
               console.log('got data');
               console.log(data);
               let info = data.transaction;
+              $("#header").show();
               document.getElementById('item').innerHTML = info.itemDescription;
               document.getElementById('price').innerHTML = info.price;
               console.log('got price');
@@ -449,34 +520,34 @@
                 console.log('in seller === null');
                 if (info.buyer === user) {
                   console.log('showing buyer');
-                  buyer(info, user);
+                  buyer(info);
                 }
                 else {
-                  console.log('updating transaction');
-                  update_transaction(user, 'seller'); // see todo what if above
+                  console.log('updating transaction seller');
+                  update_transaction('seller'); // see todo what if above
                   console.log('showing seller');
-                  seller(info, user);
+                  seller(info);
                 }
               }
               else if (info.buyer === null) {
                 console.log('in buyer');
                 if (info.seller === user) {
                   console.log('showing seller');
-                  seller(info, user);
+                  seller(info);
                 }
                 else {
-                  console.log('updating transaction');
-                  update_transaction(user, 'buyer');
+                  console.log('updating transaction buyerasa');
+                  update_transaction('buyer');
                   console.log('showing buyer');
-                  buyer(info, user);
+                  buyer(info);
                 }
               }
               else {
                 if (info.seller === user) {
-                  seller(info, user);
+                  seller(info);
                 }
                 else if (info.buyer === user) {
-                  buyer(info, user);
+                  buyer(info);
                 }
                 else {
                   // error
@@ -490,11 +561,41 @@
             // & if they have sharesflow to begin processing payments
             // & if not close browser, then if they click again show waiting for other party
             // check this last part first
-          },
-          function error(err) {
-            console.log("Error in getting context for Confirm and Continue");
           }
-        );
+          function showPaymentsOrForm(thread_context) {
+            console.log("show payments");
+            user = thread_context.psid;
+            fetch("https://hospitable-quarter.glitch.me/checkUser", {
+              body: JSON.stringify({psid : thread_context.psid}), // must match 'Content-Type' header
+              cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+              credentials: 'same-origin', // include, same-origin, *omit
+              headers: {
+                'user-agent': 'Mozilla/4.0 MDN Example',
+                'content-type': 'application/json'
+              },
+              method: 'POST', // *GET, POST, PUT, DELETE, etc.
+              mode: 'cors', // no-cors, cors, *same-origin
+              redirect: 'follow', // *manual, follow, error
+              referrer: 'no-referrer', // *client, no-referrer
+            })
+            .then((response) => {return response.json();})
+            .then((data) => {
+              console.log(data);
+              if (data.userPresent)
+                showMainDiv(thread_context);
+              else
+               $("#payments").show();
+            })
+            .catch( (err) => { console.log(err)});
+          }
+      
+        function showError(err) {
+           console.log(err);
+           $("#errorMessage").show();
+        }
+      
+        console.log("show payments or form");
+        MessengerExtensions.getContext("419937085114571", showPaymentsOrForm, showError);
         // seller flow
         // check whether the pdf has been uploaded
         // buyer flow
@@ -514,6 +615,17 @@
       HasdfadasdfEither one party has not confirmed the transaction or the seller has not uploaded the item
       <br> <button onclick="click()" value="Click Me">dfajhsdk</button>
     </div>-->
+    <div id="header" style="display:none;">
+      <h2 color="color:#3B5998">
+        Confirm Transaction
+      </h2>
+      <p id="seller_help" style="display:none;">
+        After you confirm, we will send you a message to upload your item. E-scrow bot charges BOTH parties a temporary hold to guarantee safety and we will reimburse you after the transaction is complete.
+      </p>
+      <p id="buyer_help" style="display:none;">
+        Once you confirm you want to buy this item, we will charge you a temporary hold to guarantee safety for both parties. This hold will be reimbursed after the transaction is complete and we will then send your item for approval. 
+      </p>
+    </div>
     <div id="complete" style="display:none">
       Both parties have agreed to the transaction, this stage is complete.<br>
       Please check if a more recent stage of the process has been shared in your chat.<br>
@@ -535,20 +647,50 @@
       you are the <span id="role"></span>
     </div>
     <div id="confirm" style="display:none">
-      <button id="confirm_button" onclick="confirm()">
+      <button id="confirm_button" onclick="confirm()" style="border-style:solid;background-color:white;border-color:#3B5998;border-radius:3px;">
         Confirm and Continue
       </button>
-      <button id="deny_button" onclick="deny()">
+      <button id="deny_button" onclick="deny()" style="border-style:solid;background-color:white;border-color:#3B5998;border-radius:3px;">
         Deny offer
       </button>
-      <div id="confirm_id"></div>
-      <div id="confirm_role"></div>
-      
+      <div style="display:none">
+        <div id="confirm_id" ></div>
+        <div id="confirm_role"></div>
+      </div>
+
     </div>
-    
+
     <div id="in_script" style="display:none">
       We are in the script
     </div>
+    
+   <div id="payNow" style="display:none;">
+      <div id="buyer_pay" style="display:none;">
+        <p>
+          Please submit your payment for the item using the button below. We will charge your stripe account for the agreed upon price plus an insurance hold. BOTH parties will be charged
+         this hold. This hold guarantees your security in this transaction. In the case of a scam, the holds will be used to reimburse you for damages.
+        </p>  
+     </div>
+     <div id="seller_pay" style="display:none;">
+       <p>
+         Please submit a payment for our insurance hold. This is a temporary hold that will be reimbursed upon transaction completion. BOTH parties will be charged
+         this hold. This hold guarantees your security in this transaction. In the case of a scam, the holds will be used to reimburse you for damages.
+       </p>
+     </div>
+      <form id="chargeForm" action="javascript:SubForm();" method="POST">
+        <script
+          src="https://checkout.stripe.com/checkout.js" class="stripe-button"
+          data-key="pk_test_SfFEOJ30IbciexZavBVyQoZk"
+          data-name="Escrow Bot"
+          data-amount="<%= amount %>"
+          data-description="Escrow Payment"
+          data-zip-code="true"
+          data-image="https://stripe.com/img/documentation/checkout/marketplace.png"
+          data-locale="auto">
+        </script>
+      </form>
+    </div>
+    
     
     <div id="payments" style="display:none">
       <h2>
@@ -557,7 +699,7 @@
       <p>
         It looks like we don't know your payment information. For us to be able to complete your transaction, you must authorize us to use your Stripe account.
       </p>
-      <a href="https://hospitable-quarter.glitch.me/authorize?redirect=https://hospitable-quarter.glitch.me/start_transaction?txid=<%- txid %>">
+      <a href="javascript:void(0);" onclick="sendToStripe()">
           <button id="paymentBtn" class="btn btn-primary">
             Pay with Stripe 
           </button>

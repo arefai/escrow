@@ -10,20 +10,27 @@ var stripe_test_key = "sk_test_Be8aSqR2PVKve88a4PHfxl0T"
 const querystring = require('querystring');
 const url = require('url');
 const request = require('request'); 
-const dbHelp = require('./dbhtml.js');
+const dbHelp = require('./dbhtml.js'),
+  ui = require('./uiComponents.js');
+
 
 module.exports = {
   sendCharge : sendCharge,
   home : home,
   connect : connect,
   authorize : authorize,
-  login : login,
-  receiveLogin : receiveLogin
+  receiveLogin : receiveLogin,
+  sendRefund : sendRefund,
+  sendTransfer : sendTransfer,
+  confirm: confirm
+}
+
+function confirm(req, res) {
+  res.render('confirmation');
 }
 
 function connect(req, res) {
-  res.render('connect');
-  //res.render('/views/connect.ejs', { psid_fb : req.query.psid_fb }); 
+  res.render('connect'); 
 }
 
 function authorize(req, res) {
@@ -39,7 +46,7 @@ function authorize(req, res) {
   // Prepare the mandatory Stripe parameters.
   // Save psid into session here
   let parameters = {
-    redirect_uri : stripe_redirect_uri, 
+    redirect_uri : redirect_url, 
     client_id: stripe_client_id,
     state: session_state,
   };
@@ -71,11 +78,7 @@ function receiveLogin(req, res) {
     if (err || body.error) {
       return res.send(JSON.stringify({error: true, errorMessage: 'The Stripe onboarding process has not succeeded.'}));
     } 
-    else {
-      // Update the model and store the Stripe account ID in the datastore.
-      // This Stripe account ID will be used to pay out to the pilot.
-      console.log("User data - take that for data!"); 
-      
+    else {      
       console.log("data received from stripe: " + JSON.stringify(body));
       let user_info = {
         stripe_user_id : body.stripe_user_id,
@@ -104,36 +107,178 @@ function receiveLogin(req, res) {
       })
       .catch(function (err) {
         return res.send(JSON.stringify({error: true, errorMessage: "There was a problem with the database"}));
-      })
+      });
     }
   })
 }
 
 function home(req, res) {
-  res.render('payments', { amount : 1000 }); 
-}
-
-// function to send payment request to Stripe API endpoint
-// need: amount of transaction, stripe user id 
-function sendCharge(req, res) {
-  console.log("Hello inside of payments");
-  let stripe_id = req.stripe_id
-  let amount = req.amount 
+  let txid = req.query.txid;
+  // select the psid based on the buyer or seller 
+  let user = req.query.user;
+  let redirect_url = req.query.redirect_url;
+  console.log("txid in home: " + txid);
   
-  stripe.charges.create({
-    amount: amount,
-    currency: "usd",
-    source: stripe_id
-  }).then(function(error, payment) {
-      if (error) {
-        throw error;
-      } else {
-        console.log("This is the payment response");
-        console.log(payment);
-      }
+  return dbHelp.allAsync("SELECT * FROM transactions WHERE txid=?", [txid])
+  .then((rows) => {
+    if (rows.length == 1) {
+    }
+    console.log("link to send: " + "/payments/submit?" + rows[0].buyer);
+    let price = rows[0].price * 100;
+    let psid = 0;
+    if (user == "buyer") {
+      psid = rows[0].buyer;
+    }
+    else {
+      psid = rows[0].seller;
+    }
+    
+    return res.render('payments', { amount : price, link : "/payments/submit?psid=" + psid + "&txid=" + txid + "&amount=" + price + "&user=" + user + "&redirect=" + redirect_url});  
+  })
+  .catch(function (err) {
+    return res.send(JSON.stringify({error: true, errorMessage: err }));
   });
 }
 
-function sendPaymentInfo(psid) {
+function sendCharge(req, res) {
+  // get psid, query db, get stripe ID, and charge this user
+  console.log('got sendCharge');
+  let psid = req.query.psid;
+  let market_participant = req.query.user;
+  console.log("market_participant: " + req.query.user);
+  //let redirect_url = req.query.redirect;
+  let txid = req.query.txid;
   
+  console.log("psid inside sendCharge: " + psid);
+  return dbHelp.allAsync("SELECT * FROM users WHERE psid=?", [psid])
+  .then((rows) => {
+    console.log(rows);
+    let stripe_id = rows[0].stripe_id;
+    
+    return stripe.charges.create({
+      amount: req.query.amount,
+      currency: "usd",
+      source: "tok_visa",
+    }, 
+    {
+      stripe_account: stripe_id,
+    });
+  })
+  .then(function(payment) {
+      console.log("successful payment response");
+      var stripe_charge_id = payment.id
+      // update users with charge ids for future refunds
+      // update transaction table with buyer_paid and seller_paid
+      if (market_participant === "buyer") {
+        return dbHelp.runAsync("UPDATE transactions SET buyer_paid=?, buyer_charge_id=? WHERE txid=?", [1, stripe_charge_id, txid])
+      } 
+      else {
+        return dbHelp.runAsync("UPDATE transactions SET seller_paid=?, seller_charge_id=? WHERE txid=?", [1, stripe_charge_id, txid])
+      }
+  })
+  .then(function (dbRes) {
+    return dbHelp.allAsync("SELECT * FROM transactions WHERE txid=?", [txid])
+  })
+  .then(function(rows) {
+    if (rows[0].buyer_paid && rows[0].seller_paid) {
+      ui.sendCustom(rows[0].buyer, message);
+    }
+    //res.redirect(redirect_url);
+    return res.send(JSON.stringify({error: false, paymentSubmitted: true}));
+  })
+  .catch(function (err) {
+    return res.send(JSON.stringify({error: true, paymentSubmitted: false, errorMessage: "There was a problem with the database"}));
+  });
+  
+  let message = {
+    "attachment": {
+      "type":"template",
+      "payload":{ 
+        "template_type":"generic",
+        "elements": [{
+          "title":"You Like???",
+          "buttons":[{
+            "type":"postback",
+            "title":"deny",
+            "payload":"{txid}{psid}deny",
+          },{
+            "type":"postback",
+            "title":"approve",
+            "payload":"{txid}{psid}agree",
+          }]
+        }]
+      }
+    }
+  }
+  dbHelp.allAsync("SELECT * FROM transactions WHERE txid=?", [txid])
+  .then(function(rows) {
+    if (rows[0].buyer_paid && rows[0].seller_paid) {
+      ui.sendCustom(rows[0].buyer, message);
+    }
+  })
+  .catch(function (err) {
+    return "There was a problem with the database";
+  });
+}
+
+function sendRefund(req, res) {
+  // get psid, query db, get stripe ID, and charge this user
+  let psid = req.query.psid;
+  let user = req.query.user 
+  let redirect_url = req.query.redirect;
+  let txid = req.query.txid;
+
+  console.log("inside sendRefund with txid of " + txid);
+  return dbHelp.allAsync("SELECT * FROM transactions WHERE txid=?", [txid])
+  .then((rows) => {
+    let charge_id = 0;
+    if (user === 'buyer') {
+      charge_id = rows[0].buyer_charge_id;
+    }
+    else {
+      charge_id = rows[0].buyer_charge_id;
+    }
+    
+    stripe.refunds.create({
+      charge: charge_id
+    })
+    .then(function(refund) {
+      console.log("successful refund");
+      res.redirect(redirect_url);
+    })
+    .catch(function (err) {
+      return "There was an error with the Stripe payment";
+    });
+  })
+  .catch(function (err) {
+    return "There was a problem with the database";
+  });
+}
+
+function sendTransfer(req, res) {
+  let txid = req.query.txid;
+  
+  return dbHelp.allAsync("SELECT u.stripe_id, t.price FROM users u, transactions t WHERE t.txid=? AND t.seller = u.psid", [txid])
+  .then((rows) => {
+    let stripe_id = rows[0].stripe_id;
+    let amount = rows[0].price;
+    
+    // Create a Transfer to the connected account
+    stripe.transfers.create({
+      amount: amount,
+      currency: "usd",
+      destination: stripe_id,
+      transfer_group: txid,
+    }).then(function(transfer) {
+      console.log("successful transfer from bot to seller");
+      return res.send(JSON.stringify({error: false, transferCompleted: true}));
+    })
+    .catch(function (err) {
+      console.log("There was an error with the Stripe payment");
+      return res.send(JSON.stringify({error: true, transferCompleted: false, errorMessage: "There was an error with the Stripe payment"}));
+    });
+  })
+  .catch(function (err) {
+    return res.send(JSON.stringify({error: true, transferCompleted: false, errorMessage: "There was an error with the database"}));
+  });
 }

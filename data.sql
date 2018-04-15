@@ -44,7 +44,7 @@ INSERT INTO flowStates (state, keyword, valueAction, nextstate) VALUES
     
 INSERT INTO messages(state, messageType, message, options) VALUES 
   (111, 'text', 'Hi! I am an E-scrow bot to help you secure your transactions. Here is how I work: I secure a buyer-seller transaction by placing a temporary credit card hold on both the buyer and the seller. This hold is insurance for both parties against scammers. If anything goes wrong, our arbitrators will review your case and reimburse you for any damages you have endured. Please use our chat extension in a chat with your buyer or seller and we will message you if we need something.', ''),
-  (0, 'dynamic', 'TRANSACTION INFO HERE: ', 'SELLER_UPLOAD'), 
+  (0, 'dynamic', 'TRANSACTION INFO HERE: ', ''), 
   (1, 'text', 'Thank you for uploading your file. Your file will now be passed to the buyer for approval.', ''),
   (2, 'dynamic', 'SHOW THE BUYER FILE', 'SHOW_FILE'), 
   (4, 'text', 'You have approved the file! Your hold will be reimbursed and your payment will now be sent to the seller. Thank you for using E-scrow bot!', ''),

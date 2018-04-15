@@ -1,6 +1,8 @@
 const objects = require('./messageObjects.js'),
       dbHelp = require('./dbhtml.js');
 
+const START_STATE = 111;
+
 const ACTIONS = {
    "PRICE" : {
      type : "decimal",
@@ -23,7 +25,9 @@ const ACTIONS = {
   "FILE" : {
      type : "text",
     query: function(db, userid, txid, value) {
-        db.run("UPDATE transactions SET itemLink=? WHERE txid=?", [value, txid], function() {}); 
+        db.run("UPDATE transactions SET itemLink=? WHERE txid=?", [value, txid], function(err) {
+          db.run("UPDATE conversationStates SET state=? WHERE user=? ", [START_STATE, userid]);
+        }); 
     }
     
   }
@@ -104,7 +108,7 @@ const endState = 22;
 
 module.exports = {
  PAGE_ACCESS_TOKEN : process.env.PAGE_ACCESS_TOKEN, 
-  START_STATE : 111,
+  START_STATE : START_STATE,
   BUYER_INCOMPLETE_STATE: 15,
   SELLER_INCOMPLETE_STATE: 17,
   BUYER_WAITING_STATE: 13,

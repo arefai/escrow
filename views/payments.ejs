@@ -5,12 +5,12 @@
   </head>
   <body>
     <div id="content">
-      <form action="/payments/submit" method="POST">
+      <form action="<%= link %>" method="POST">
         <script
           src="https://checkout.stripe.com/checkout.js" class="stripe-button"
           data-key="pk_test_SfFEOJ30IbciexZavBVyQoZk"
           data-name="Escrow Bot"
-          data-amount="<%=amount%>"
+          data-amount="<%= amount %>"
           data-description="Escrow Payment"
           data-zip-code="true"
           data-image="https://stripe.com/img/documentation/checkout/marketplace.png"
@@ -18,5 +18,17 @@
         </script>
       </form>
     </div>
+    <script>
+      window.extAsyncInit = function() {
+        console.log('messenger extensions loaded in PAYMENTS');
+      }
+      (function(d, s, id){
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) {return;}
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'Messenger'));
+    </script>
   </body>
 </html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Share Escrow Bot</title>
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script>
+      var user = '';     
+      var psid = '';
+      function sendToStripe() {
+           console.log("hellllooo");
+           MessengerExtensions.getContext("419937085114571", function (thread_context) {
+           psid = thread_context.psid;
+           let url = "https://hospitable-quarter.glitch.me/authorize?redirect=https://hospitable-quarter.glitch.me/receiveLogin/start_transaction";
+           url = url.concat("&psid=").concat(psid);
+           url = url.concat("&txid=").concat(txid);
+           window.location.replace(url);
+        }, (err) => {console.log(err);});
+      }
+    </script>
+  </head>
+  <body>
+    <script>
+      var txid = <%- JSON.stringify(txid) %>;
+      console.log("Redirect rendered");
+    </script>
+    <script>
+      // document.getElementById('in_script').style='display:inline';
+      // document.write('hello world');
+      (function(){
+        var oldLog = console.log;
+        console.log = function (message) {
+          // document.write('message: ' + message);
+          // document.write(typeof(message));
+          // message = String(message);
+          return fetch('https://hospitable-quarter.glitch.me/log', {
+            body: JSON.stringify({text: message}), // must match 'Content-Type' header
+            cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+            credentials: 'same-origin', // include, same-origin, *omit
+            headers: {
+              'user-agent': 'Mozilla/4.0 MDN Example',
+              'content-type': 'application/json'
+            },
+            method: 'POST', // *GET, POST, PUT, DELETE, etc.
+            mode: 'cors', // no-cors, cors, *same-origin
+            redirect: 'follow', // *manual, follow, error
+            referrer: 'no-referrer', // *client, no-referrer
+          })
+          .then(function(response) {return response.json()}) // parses response to JSON
+          oldLog.apply(console, arguments);
+        };
+      })();
+      console.log('in script');
+      console.log('txid: '.concat(txid));
+      // let user = '';
+      var role = '';
+      // console.log(txid);
+      function sendText (message) {
+        let req = 'https://hospitable-quarter.glitch.me/send_message';
+        let body = {
+          psid: user,
+          txid: txid,
+          message: message
+        };
+        fetch(req, {
+          body: JSON.stringify(body), // must match 'Content-Type' header
+          cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+          credentials: 'same-origin', // include, same-origin, *omit
+          headers: {
+            'user-agent': 'Mozilla/4.0 MDN Example',
+            'content-type': 'application/json'
+          },
+          method: 'POST', // *GET, POST, PUT, DELETE, etc.
+          mode: 'cors', // no-cors, cors, *same-origin
+          redirect: 'follow', // *manual, follow, error
+          referrer: 'no-referrer', // *client, no-referrer
+        });
+      }
+      
+      function confirm(thread_context) {
+        console.log('confirm called');
+        let url = "https://hospitable-quarter.glitch.me/payments?txid=" + txid;
+        let message = {
+          "attachment":{
+            "type":"template",
+            "payload":{
+              "template_type":"generic",
+              "elements": [{
+                "title":"Transaction Agreed to, now click to pay",
+                "subtitle": "SUBTITLE",
+                "default_action":{
+                  "type":"web_url",
+                  "url": url,
+                  "messenger_extensions": true,
+                  "webview_height_ratio": "tall",
+                },
+                "buttons":[{
+                  "messenger_extensions": true,
+                  "type":"web_url",
+                  "url":url, // ?txid=?
+                  "webview_height_ratio":"tall",
+                  "title":"Process Payment"
+                }]
+              }]
+            }
+          }
+        };
+        function share() {
+          MessengerExtensions.beginShareFlow(function(share_response) {
+            // User dismissed without error, but did they share the message?
+            if(share_response.is_sent === true){ 
+              // User shared. We're done here!
+              MessengerExtensions.requestCloseBrowser();
+              console.log('success');
+
+              if (role === 'seller') {
+                console.log('about to send message');
+                //sendText('Upload your pdf here.');
+              }
+            }
+            else{
+              // User canceled their share! 
+              // try again?
+              console.log('asdhfalsdfjlasdjkfajhksldfhlajksdfhjklasjklfajkhld');
+            }
+          }, 
+          function(errorCode, errorMessage) {      
+            // An error occurred in the process
+            console.log(errorCode);
+            console.log(errorMessage);
+            console.log('error');
+          },
+          message, 
+          "current_thread");
+        }
+        function share_and_message() {
+          MessengerExtensions.beginShareFlow(function(share_response) {
+            // User dismissed without error, but did they share the message?
+            if(share_response.is_sent === true){ 
+              // User shared. We're done here!
+              MessengerExtensions.requestCloseBrowser();
+              console.log('success');
+
+              if (role === 'seller') {
+                console.log('about to send message');
+                sendText('Upload your pdf here.');
+              }
+            }
+            else{
+              // User canceled their share! 
+              // try again?
+              console.log('asdhfalsdfjlasdjkfajhksldfhlajksdfhjklasjklfajkhld');
+            }
+          }, 
+          function(errorCode, errorMessage) {      
+            // An error occurred in the process
+            console.log(errorCode);
+            console.log(errorMessage);
+            console.log('error');
+          },
+          message, 
+          "current_thread");
+        }
+        url = 'https://hospitable-quarter.glitch.me/transaction_info?txid=' + txid;
+        console.log(url);
+        fetch(url, { credentials: 'same-origin' })
+        .then((response) => {
+          if (!response.ok) throw Error(response.statusText);
+          return response.json();
+        }).then((data) => {
+          console.log(data);
+          let info = data.transaction;
+          if (info.seller === thread_context.psid) {
+            if (info.seller_paid) {
+              share_and_message();
+            }
+            else {
+              // error
+            }
+          }
+          else if (info.buyer === thread_context.psid) {
+            if (info.buyer_paid) {
+              share();
+            }
+            else {
+              // error
+            }              
+          }
+          else {
+            // error
+          }
+          if (data.info.seller_agreed && data.info.buyer_agreed) {
+            if (data.)
+          if (data.share_flow) {
+            
+            
+            
+          }
+          else {
+            MessengerExtensions.requestCloseBrowser(null, null);
+          }
+        }).catch(error => console.log(error));
+      }
+      
+      
+      
+      window.extAsyncInit = function() {
+        function showError(err) {
+           console.log(err);
+           $("#errorMessage").show();
+        }
+      
+        console.log("MESSENGER extensions loaded in REDIRECT");
+        MessengerExtensions.getContext("419937085114571", confirm, showError);
+        // seller flow
+        // check whether the pdf has been uploaded
+        // buyer flow
+        // show them button to confirm, if they are second to confirm once clicked, shareflow
+        
+      };
+      
+      (function(d, s, id){
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) {return;}
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.com/en_US/messenger.Extensions.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'Messenger'));
+    </script>
+    
+    
+    
+    
+  </body>
+</html>

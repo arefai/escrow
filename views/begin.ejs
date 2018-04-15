@@ -10,7 +10,6 @@
       let txid;
       let psid;
       function showPaymentsOrForm(thread_context) {
-        console.log('showPaymentsOrForm called');
         fetch("https://hospitable-quarter.glitch.me/checkUser", {
           body: JSON.stringify({psid : thread_context.psid}), // must match 'Content-Type' header
           cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
@@ -24,13 +23,15 @@
           redirect: 'follow', // *manual, follow, error
           referrer: 'no-referrer', // *client, no-referrer
         })
-        .then((response) => function(response) {return response.json();})
+        .then((response) => {return response.json();})
         .then((data) => {
-          console.log('checked user great success');
-          //if (data.user_present){
+          console.log(data);
+          if (data.userPresent)
             $("#maindiv").show();
+          else
            $("#payments").show();
         })
+        .catch( (err) => { console.log(err)});
         }
       
       function showError(err) {
@@ -44,7 +45,6 @@
          console.log("PSID" + psid);
          let url = "https://hospitable-quarter.glitch.me/authorize?redirect=https://hospitable-quarter.glitch.me/receiveLogin/begin"
          url = url.concat("&psid=").concat(psid);
-         console.log(url);
          window.location.replace(url);
         },
         function (err) {
@@ -83,9 +83,7 @@
           oldLog.apply(console, arguments);
         };
       })();
-      console.log('in script');
       function dosomething () {
-        console.log('dosomething called');
         let button = document.getElementById('submitbutton');
         button.disabled = true; 
         button.value = "Loading...";
@@ -94,7 +92,6 @@
         let description = document.getElementById('description').value;
         let roles = document.getElementsByName('role');
         let role_string = $("input[name=user_role]:checked").val();
-        console.log("role: " + role_string);
         // assert role string not empty
         let title_string = '';
         let buyer = role_string !== 'seller';
@@ -117,6 +114,28 @@
               sender_is_buyer: buyer,
               item_description: description,
             };
+            function sendText (txid, psid, message) {
+              console.log('send_text called');
+              let req = 'https://hospitable-quarter.glitch.me/send_message';
+              let body = {
+                psid: psid,
+                txid: txid,
+                message: message
+              };
+              fetch(req, {
+                body: JSON.stringify(body), // must match 'Content-Type' header
+                cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+                credentials: 'same-origin', // include, same-origin, *omit
+                headers: {
+                  'user-agent': 'Mozilla/4.0 MDN Example',
+                  'content-type': 'application/json'
+                },
+                method: 'POST', // *GET, POST, PUT, DELETE, etc.
+                mode: 'cors', // no-cors, cors, *same-origin
+                redirect: 'follow', // *manual, follow, error
+                referrer: 'no-referrer', // *client, no-referrer
+              });
+            }
             function ask_profile(psid) {
               MessengerExtensions.getGrantedPermissions(function (permissions_response) {
                 if (permissions_response.permission.indexOf('user_profile') > -1) {
@@ -142,7 +161,6 @@
               });
             }
             function ask_messaging(psid) {
-              console.log('ask_messaging called');
               MessengerExtensions.getGrantedPermissions(function (permissions_response) {
                 if (permissions_response.permission.indexOf('user_messaging') > -1) {
                   // return getName();
@@ -167,10 +185,12 @@
               });
             }
             console.log()
+            ask_profile(thread_context.psid);
             if (!buyer){
               ask_messaging(thread_context.psid);
+              sendText(thread_context.psid, 'send pdf asdklfajklsd');
             }
-            ask_profile(thread_context.psid);
+            
             console.log(data);
             fetch('https://hospitable-quarter.glitch.me/submit_transaction', {
               body: JSON.stringify(data), // must match 'Content-Type' header
@@ -189,6 +209,9 @@
               return response.json();
             }).then((resData) => {
               data.txid = resData.txid;
+              if (!buyer) {
+                sendText(data.txid, thread_context.psid, 'send pdf asdklfajklsd');
+              }
               data.first_name = resData.first_name;
               data.last_name = resData.last_name;
               console.log("Sending template...");
@@ -202,7 +225,6 @@
         );
         
         function send_template(data) {
-          console.log('send_template called');
           let url = "https://hospitable-quarter.glitch.me/start_transaction?txid=".concat(data.txid);
           console.log(url);
           let title = '';

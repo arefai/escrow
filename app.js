@@ -27,6 +27,7 @@ const
   uuid = require('uuid/v4'),
   helper = require('./helpers.js'),
   session = require('express-session'),
+  ui = require('./uiComponents.js'),
   extension = require('./extension.js');
 
 const { check, validationResult } = require('express-validator/check');
@@ -57,20 +58,26 @@ app.set('view engine', 'ejs');
 
 app.get('/database', dbHelp.home);
 
-app.get('/payments', payments.home);
-app.post('/payments/submit', payments.sendCharge); 
+app.get('/payments', payments.home); 
 app.get('/connect', payments.connect); 
 app.get('/authorize', payments.authorize); 
-app.get('/login', payments.login);
+app.post('/payments/submit', payments.sendCharge);
+app.get('/payments/confirmation', payments.confirm);
 app.get('/receiveLogin/:redirect', payments.receiveLogin); 
 
 app.get('/extension', extension.home);
 app.get('/start_transaction', extension.start_transaction);
 app.get('/abort', extension.abort);
+app.get('/redirect', extension.redirect_user);
 app.get('/change_price', extension.change_price);
 app.post('/log', extension.log);
 app.post('/send_message', extension.send_message);
 app.post('/post_database', extension.database);
+
+app.get('/final_pay', function (req, res){
+  let txid = req.query.txid;
+  res.render('final_pay', {txid: txid});
+});
 
 app.post("/get_and_update_user", [
     check('psid').exists()
@@ -257,16 +264,14 @@ app.post("/user_agree", [
               throw err;
            });
         }
-        else {
-          throw "Transaction status incorrect for this method";
-        }
       })
-      .then(function (dbRes) {
-          console.log(dbRes);
-          if (dbRes.changes === false)
-            throw "No such transaction" 
-        
-          return res.send(JSON.stringify({error : false, successMessage : "Succesfully updated db"}));
+      .then((dbRes) => {
+        return dbHelp.allAsync("SELECT * from transactions WHERE txid=?", [request.txid]);
+      }).then(       
+        function (rows) {
+          let transact = rows[0];  
+          console.log(transact);
+          return res.send(JSON.stringify({error : false, share_flow : transact.buyer_agreed === 1 && transact.seller_agreed === 1}));
       })
       .catch(function (err) {
         console.log(err);
@@ -275,31 +280,62 @@ app.post("/user_agree", [
 });
 
 app.post("/user_disagree", [
-  check('role').exists().isIn(['buyer', 'seller']),
-  check('psid').exists(),
-  check('txid').exists()
-],
-  function (req, res) {
-    //const errors = validationResult(req);
-    //console.log(errors);
-    //if (!errors.isEmpty()) {
-    //  return res.status(422).json({ error : true, errors: errors.mapped() });
-    //}
-    console.log("about to delete transaction");
-    // matchedData returns only the subset of data validated by the middleware
-    const request = req.body;
-    console.log(request.txid);
-    return dbHelp.runAsync("DELETE from transactions WHERE txid=?", [request.txid])
+    check('role').exists().isIn(['buyer', 'seller']),
+    check('psid').exists(),
+    check('txid').exists() 
+  ], function (req, res) {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        console.log(errors.mapped());
+        return res.status(422).json({ error : true, errors: errors.mapped() });
+      }
+
+      // matchedData returns only the subset of data validated by the middleware
+    
+    const request = matchedData(req);
+   
+    // "SELECT * FROM transaction WHERE txid=?", [request.txid])
+    return dbHelp.allAsync("SELECT * FROM transactions WHERE txid=?", [request.txid])
     .then(function (dbRes) {
-        console.log(dbRes);
+      // find psid of the other person depending on request.role
+      var tmp_role;
+      if (request.role === "seller") {
+        tmp_role = dbRes[0].buyer;
+      } else {
+        tmp_role = dbRes[0].seller;
+      }
+      // tmp_role is the psid of the user we need to contact
+      ui.sendText(tmp_role, "Your transaction for " + dbRes[0].itemDescription +  " has been declined.");
+      
+      return dbHelp.runAsync("DELETE from conversationStates WHERE user=?", [tmp_role])
+      .then(function (dbRes) {
         if (dbRes.changes === false)
           throw "No such transaction" 
+        
+        // continue with delete
+        return dbHelp.runAsync("DELETE from transactions WHERE txid=?", [request.txid])
+        .then(function (dbRes) {
+            console.log(dbRes);
 
-        return res.send(JSON.stringify({error : false, successMessage : "Succesfully deleted transaction"}));
+            if (dbRes.changes === false)
+              throw "No such transaction" 
+
+            return res.send(JSON.stringify({error : false, successMessage : "Succesfully deleted transaction"}));
+        })
+        .catch(function (err) {
+          console.log(err);
+          return res.send(JSON.stringify({error : true, errorMessage : err}));
+        });
+      })
+      .catch(function (err) {
+        console.log(err);
+        return res.send(JSON.stringify({error : true, errorMessage : err}));
+      });
+     
     })
     .catch(function (err) {
       console.log(err);
-      return res.send(JSON.stringify({error : true, errorMessage : err}));
+      return res.send(JSON.stringify({error: true, errorMessage: err}));
     });
 });
 
@@ -310,7 +346,8 @@ app.post('/checkUser', function (req, res) {
     console.log('psid received by /checkUser: ' + psid);
     return dbHelp.allAsync("SELECT * FROM users WHERE psid=?", [psid])
     .then(function(rows) {
-      return res.send(JSON.stringify({error: false, userPresent: rows.length == 1}));
+      console.log(rows);
+      return res.send(JSON.stringify({error: false, userPresent: rows[0].stripe_id != null}));
     })
     .catch(function (err) {
       return res.send(JSON.stringify({error: true, errorMessage: "There was a problem with the database"}));
@@ -356,7 +393,7 @@ app.post('/update_transaction', [
 
       // matchedData returns only the subset of data validated by the middleware
       const request = matchedData(req);
-      
+
       return dbHelp.allAsync("SELECT * FROM transactions WHERE txid=?", [request.txid])
       .then(function (rows) {
         if (rows.length == 0)
@@ -369,7 +406,7 @@ app.post('/update_transaction', [
         if (request.role === 'seller' && transact.seller !== null)
             throw "Seller already set";
       })
-      .then(() => { return helper.findName(request.sender_id); })
+      .then(() => { return helper.findName(request.psid); })
       .then((name) => {
         return helper.checkAndUpdateUser(name[0], name[1], request.psid);
       })
