@@ -26,6 +26,9 @@
     <script>
       // document.getElementById('in_script').style='display:inline';
       // document.write('hello world');
+      //const GoogleImages = require('google-images');
+      //const clientgoogle = new GoogleImages('004111064101966962888:8zjkinbqpek', 'AIzaSyCgl-fixloop9pTi5v_6Z-GhoclLeQHBGE');
+      
       (function(){
         var oldLog = console.log;
         console.log = function (message) {
@@ -74,6 +77,7 @@
       }
       
       function sendText (message) {
+        console.log('sendText called');
         let req = 'https://hospitable-quarter.glitch.me/send_message';
         let body = {
           psid: user,
@@ -236,18 +240,18 @@
       
       window.extAsyncInit = function() {
         
-              
+        console.log('messenger extensions loaded');   
         shareFlow = function() {
           console.log("Share flow");
-          let url = "https://hospitable-quarter.glitch.me/payments?txid=" + txid;
+          let url = "https://hospitable-quarter.glitch.me/final_pay?txid=" + txid;
           let message = {
             "attachment":{
               "type":"template",
               "payload":{
                 "template_type":"generic",
                 "elements": [{
-                  "title":"Transaction Agreed to, now click to pay",
-                  "subtitle": "SUBTITLE",
+                  "title":"The transaction has been agreed to, now click to pay with stripe",
+                  "subtitle": "Transaction",
                   "default_action":{
                     "type":"web_url",
                     "url": url,
@@ -276,7 +280,7 @@
 
               if (role === 'seller') {
                 console.log('about to send message');
-                sendText('Upload your pdf here.');
+                sendText('Upload your electronic item here.');
               }
             }
             else{
@@ -307,7 +311,7 @@
               if (typeof sendText == 'undefined'){
                   console.log('sendtext undefined');
               }
-              sendText(user, "We are in the private chat");
+              sendText(user, "We are in the private chat to confirm your transaction");
             },
             function error(err) {
               console.log("Error on get context in askPermission");
@@ -372,8 +376,8 @@
           document.getElementById('review').style = 'display:inline'; // worth factoring out?
           
           if (!info.seller_agreed) {
-            //$("#payNow").hide();
-            $("#waiting").show();
+            $("#review").hide();
+            $("#waiting_buyer").show();
             return;
           }
           
@@ -420,13 +424,14 @@
           console.log(info);
           
           if (!info.buyer_agreed) {
-            $("#waiting").show();
+            $("#review").hide();
+            $("#waiting_seller").show();
             return;
           }
           
           if (info.seller_agreed){
             // console.log(info.itemLink);
-            if (!info.itemLink !== null){
+            if (info.itemLink !== null){
               if (info.seller_paid === 0) {
                 $("#confirm").hide();
                 $("#seller_pay").show();
@@ -595,6 +600,7 @@
         }
       
         console.log("show payments or form");
+        console.log(MessengerExtensions);
         MessengerExtensions.getContext("419937085114571", showPaymentsOrForm, showError);
         // seller flow
         // check whether the pdf has been uploaded
@@ -630,16 +636,19 @@
       Both parties have agreed to the transaction, this stage is complete.<br>
       Please check if a more recent stage of the process has been shared in your chat.<br>
     </div>
-    <div id="waiting" style="display:none">
+    <div id="waiting_seller" style="display:none">
       You have agreed to the transaction.<br>
-      We are currently waiting for {name} to complete this step.<br>
-      <div id="waiting_on">{role}</div>
+      We are currently waiting on the buyer to complete their next step.<br>
+    </div>
+    <div id="waiting_buyer" style="display:none">
+      You have agreed to the transaction.<br>
+      We are currently waiting on the seller to complete their next step.<br>
     </div>
     <div id="already_sent" style="display:none">
-      We have already sent you a direct message, please upload the pdf in that chat.<br>
+      We have already sent you a direct message, please upload the electronic item in that chat.<br>
     </div>
     <div id="check_messages" style="display:none">
-      We have sent you a direct message, please upload your pdf there.<br>
+      We have sent you a direct message, please upload your electronic item there.<br>
     </div>
     <div id="review" style="display:none">
       Item is <span id="item">{item}</span>

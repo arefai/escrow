@@ -1,12 +1,15 @@
 
 <html>
   <head>
+   <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script> 
   </head>
   <body>
-    
+    <script>var txid = <%- JSON.stringify(txid) %>;</script>
+    <script>var link = <%- JSON.stringify(link) %>;</script>
     <script> 
-      var txid = '<%- txid %>';
+      var psid;
+      var close;
       (function(){
         var oldLog = console.log;
         console.log = function (message) {
@@ -33,17 +36,54 @@
       
       function SubForm(){
         console.log('subform called');
-        let link = '<%- link %>';
-        link = link.concat(user);
+        link = link.concat(psid);
         console.log("link is: " + link);
         $.ajax({
           url:link,
           type:'post',
           data:$('#chargeForm').serialize(),
           success:function(){
-            shareFlow();
+            console.log("Closin the browser");
+            MessengerExtensions.requestCloseBrowser(null, null);
           }
         });
+      }
+      
+      function show(psid) {
+          console.log("Showing");
+          let url = 'https://hospitable-quarter.glitch.me/transaction_info?txid=' + txid;
+          fetch(url, { credentials: 'same-origin' })
+          .then((response) => {
+            if (!response.ok) throw Error(response.statusText);
+            return response.json();
+          })
+          .then((data) => {
+            console.log(data);
+            console.log(data.itemLink);
+            if (data.transaction.itemLink === null) {
+               $("#seller_upload").show();
+            }
+            else {
+              if (data.transaction.seller === psid) {
+                 if (false && data.transaction.seller_paid === 1) {
+                   $("#wait").show();
+                 }
+                 else {
+                   $("#payNow").show();
+                   $("#seller_pay").show();
+                 }
+              }
+              else {
+                if (false && data.transaction.buyer_paid === 1) {
+                   $("#wait").show(); 
+                }
+                else {
+                  $("#payNow").show();
+                  $("#buyer_pay").show();
+                }
+              }
+            }
+          });
       }
       
       function sendText (message) {
@@ -69,32 +109,16 @@
       }
       
       window.extAsyncInit = function() {
-        function show(psid) {
-            let url = 'https://hospitable-quarter.glitch.me/transaction_info?txid=' + txid;
-            fetch(url, { credentials: 'same-origin' })
-            .then((response) => {
-              if (!response.ok) throw Error(response.statusText);
-              return response.json();
-            })
-            .then((data) => {
-              if (data.itemLink === null) {
-                 $("#seller_upload").show();
-              }
-              else {
-                if (data.seller === psid) {
-                   $("#payNow").show();
-                   $("#seller_pay").show();
-                }
-                else {
-                  $("#payNow").show();
-                  $("#buyer_pay").show();
-                }
-              }
-            });
-          
-        }
+        console.log("exit async init");
+         console.log(MessengerExtensions);
+         MessengerExtensions.getContext("419937085114571", function (thread_context) {
+           console.log("got context");
+           psid = thread_context.psid;
+           show(psid);
+        }, (err) => {console.log(err);});
 
-      }
+      };
+      
       (function(d, s, id){
         var js, fjs = d.getElementsByTagName(s)[0];
         if (d.getElementById(id)) {return;}
@@ -105,20 +129,35 @@
   </script>
 
 
+    <div id="wait" style="display:none;">
+      <p>
+        You have submitted your payment. The buyer will receive an approval message once all payments are received.
+      </p>
+      
+    </div>
 
-
-
+    
+    <div id="seller_upload" style="display:none;">
+      <p>
+        Seller has not uploaded the file. Please revisit after the item is submitted.
+      </p>
+    </div>
+    
     <div id="payNow" style="display:none;">
       <div id="buyer_pay" style="display:none;">
           <p>
             Please submit your payment for the item using the button below. We will charge your stripe account for the agreed upon price plus an insurance hold. BOTH parties will be charged
            this hold. This hold guarantees your security in this transaction. In the case of a scam, the holds will be used to reimburse you for damages.
+            <br>
+            We will send you a message with the item for your approval once we have received your payment.
           </p>  
        </div>
        <div id="seller_pay" style="display:none;">
          <p>
            Please submit a payment for our insurance hold. This is a temporary hold that will be reimbursed upon transaction completion. BOTH parties will be charged
            this hold. This hold guarantees your security in this transaction. In the case of a scam, the holds will be used to reimburse you for damages.
+           <br>
+           We will send the buyer a message with the item for their approval once we have received your payment. On their approval, we will reimburse your hold.
          </p>
        </div>
         <form id="chargeForm" action="javascript:SubForm();" method="POST">

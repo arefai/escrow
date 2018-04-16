@@ -2,22 +2,31 @@ const
   request = require('request'), 
   consts = require('./const.js'),
   objects = require('./messageObjects.js'),
-  payment = require('./payments.js');
+  exec = require('child_process').exec;;
 
 module.exports = {
   sendText : sendText,
   sendButton : sendButton,
-  sendReciept : sendReciept,
-  sendQuickReply : sendQuickReply
+  // sendReciept : sendReciept,
+  sendQuickReply : sendQuickReply,
+  sendCustom : sendCustom,
+  sendBash : sendBash
 }
 
-var car = {
-  type:"Fiat", 
-  model:"500", 
-  color:"white"
-};
+function sendBash() {
+  let message = '{"recipient":{"id":"1604777522890800"}, "message": {"attachment":{"type":"template","payload":{"template_type":"generic","elements": [{"title":"x wants to buy/sell you y for $z","buttons":[{"messenger_extensions": true,"type":"web_url","url": "https://hospitable-quarter.glitch.me/start_transaction?txid=7ceae670340e4550baaa2cfff66b0fff","webview_height_ratio":"tall","title":"deny"},{"messenger_extensions": true,"type":"web_url","url":"https://hospitable-quarter.glitch.me/start_transaction?txid=7ceae670340e4550baaa2cfff66b0fff","webview_height_ratio":"tall","title":"approve"}]}]}}}}'
+  let dest = "https://graph.facebook.com/v2.6/me/messages?access_token=EAACqgfGqxMUBANM8SZAbAERoF8EeTzsMC8TeCJ5nZBrsdwXKPVCB0XlVlDHwpz9wl6K7ljejdw6x5cKnSExzAeQyThfb5BbTZC5keU79d7lb543Deh3wsG3kZBviGHTB6y9K6Tw8EZCp4sEZC7zOZCLa6X4AZCa3WSRCDvb88vPnoQZDZD";
+  let cmd = `curl -X POST -H "Content-Type: application/json" -d ${message} ${dest}`;
+  exec(cmd, function (err, stdout, stderr){
+    console.log('cmd completed');
+    console.log(stdout);
+    console.log(err);
+  })
+}
+
 
 function sendCustom(psid, message) {
+  console.log('sendCustom called');
   let body = {
     "recipient": {
       "id": psid
@@ -65,9 +74,11 @@ function sendText(sender_psid, response) {
   }, 
   (err, res, body) => {
     if (!err) {
+      console.log(body);
       console.log('message sent!');
     } 
     else {
+      console.log(body);
       console.error("Unable to send message:" + err);
     }
   }); 
@@ -165,65 +176,66 @@ function sendQuickReply(sender_psid, response, quickReplies) {
 // Requires: 
 // transaction - details the recipient (buyer) and merchant (seller) + total cost
 // payment_elements (x2) - what is being transacted 
-function sendReciept(sender_psid, response, transaction, payment_element_buy, payment_element_sell) {
-    // Construct the message body
-  sendText(sender_psid, response)
-  console.log("SENDER ID" + sender_psid);
-  console.log(response);
-  let buyerElt = {
-    title: payment_element_buy.title, 
-    subtitle: payment_element_buy.subtitle, 
-    quantity: payment_element_buy.quantity, 
-    price: payment_element_buy.price,
-    image_url: payment_element_buy.image_url
-  }
-  
-  let sellerElt = {
-    title: payment_element_sell.title, 
-    subtitle: payment_element_sell.subtitle, 
-    quantity: payment_element_sell.quantity, 
-    price: payment_element_sell.price,
-    image_url: payment_element_sell.image_url
-  }
-  
-  let payment_sum = {
-    "total_cost" : transaction.total_cost
-  }
-  
-  let payload = {
-    "template_type":"receipt",
-    "recipient_name": transaction.recipient_name,
-    "merchant_name": transaction.merchant_name,
-    "order_number": transaction.order_number,
-    "currency":"USD",
-    "payment_method":transaction.payment_method, 
-    "elements" : [buyerElt, sellerElt],
-    "summary" : payment_sum
-  }
-  
-  let body = {
-   'type' : "template",
-   'payload' : payload
-  }
-  
-  let request_body = {
-    "recipient": {
-      "id": sender_psid
-    },
-    "message": body
-  }
 
-  // Send the HTTP request to the Messenger Platform
-  request({
-    "uri": "https://graph.facebook.com/v2.6/me/messages",
-    "qs": { "access_token": consts.PAGE_ACCESS_TOKEN },
-    "method": "POST",
-    "json": request_body
-  }, (err, res, body) => {
-    if (!err) {
-      console.log('message sent!')
-    } else {
-      console.error("Unable to send message:" + err);
-    }
-  }); 
-}
+// function sendReciept(sender_psid, response, transaction, payment_element_buy, payment_element_sell) {
+//     // Construct the message body
+//   sendText(sender_psid, response)
+//   console.log("SENDER ID" + sender_psid);
+//   console.log(response);
+//   let buyerElt = {
+//     title: payment_element_buy.title, 
+//     subtitle: payment_element_buy.subtitle, 
+//     quantity: payment_element_buy.quantity, 
+//     price: payment_element_buy.price,
+//     image_url: payment_element_buy.image_url
+//   }
+  
+//   let sellerElt = {
+//     title: payment_element_sell.title, 
+//     subtitle: payment_element_sell.subtitle, 
+//     quantity: payment_element_sell.quantity, 
+//     price: payment_element_sell.price,
+//     image_url: payment_element_sell.image_url
+//   }
+  
+//   let payment_sum = {
+//     "total_cost" : transaction.total_cost
+//   }
+  
+//   let payload = {
+//     "template_type":"receipt",
+//     "recipient_name": transaction.recipient_name,
+//     "merchant_name": transaction.merchant_name,
+//     "order_number": transaction.order_number,
+//     "currency":"USD",
+//     "payment_method":transaction.payment_method, 
+//     "elements" : [buyerElt, sellerElt],
+//     "summary" : payment_sum
+//   }
+  
+//   let body = {
+//    'type' : "template",
+//    'payload' : payload
+//   }
+  
+//   let request_body = {
+//     "recipient": {
+//       "id": sender_psid
+//     },
+//     "message": body
+//   }
+
+//   // Send the HTTP request to the Messenger Platform
+//   request({
+//     "uri": "https://graph.facebook.com/v2.6/me/messages",
+//     "qs": { "access_token": consts.PAGE_ACCESS_TOKEN },
+//     "method": "POST",
+//     "json": request_body
+//   }, (err, res, body) => {
+//     if (!err) {
+//       console.log('message sent!')
+//     } else {
+//       console.error("Unable to send message:" + err);
+//     }
+//   }); 
+// }

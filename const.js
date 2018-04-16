@@ -1,5 +1,7 @@
 const objects = require('./messageObjects.js'),
-      dbHelp = require('./dbhtml.js');
+  dbHelp = require('./dbhtml.js'),
+  payments = require('./payments.js'),
+  extension = require('./extension.js');
 
 const START_STATE = 111;
 
@@ -29,7 +31,23 @@ const ACTIONS = {
           db.run("UPDATE conversationStates SET state=? WHERE user=? ", [START_STATE, userid]);
         }); 
     }
-    
+  },
+  "DENY": {
+    type: "text",
+    query: function(db, userid, txid, value) {
+      db.run("UPDATE transactions SET item_valid=?", ['false'], function () {});  
+      // go to arbitration
+      extension.sendFinalMessage(txid, 'Your transaction is under arbitration.');
+    }
+  },
+  "APPROVE": {
+    type: "text",
+    query: function(db, userid, txid, value) {
+      db.run("UPDATE transactions SET item_valid=?", ['true'], function () {});  
+      payments.sendRefund(txid);
+      payments.sendTransfer(txid);
+      extension.sendFinalMessage(txid, 'Your transaction is complete.');
+    }
   }
   
 }
@@ -119,5 +137,4 @@ module.exports = {
   END_STATE : endState, 
   DYNAMIC_ACTIONS : DYNAMIC_ACTIONS,
 }
-
 

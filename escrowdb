@@ -5,6 +5,10 @@ create() {
   sqlite3 $dbfile < data.sql
 }
 
+fillLink() {
+  sqlite3 $dbfile < fillData.sql
+}
+
 delete() {
   rm -rf $dbfile
 }
@@ -31,7 +35,11 @@ case $1 in
   "destroy")
     delete
     ;;
-
+  
+  "fill")
+    fillLink
+    ;;
+    
   "reset")
     # make into functions
     delete

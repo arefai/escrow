@@ -14,6 +14,7 @@ let db = dbInit.getDb();
 
 exports.home = function (req, res) {
   console.log('rendering begin');
+  ui.sendBash();
   res.render('begin');
 };
 
@@ -27,6 +28,8 @@ exports.start_transaction = function (req, res) {
   return dbHelp.allAsync('SELECT * FROM transactions WHERE txid=?', [req.query.txid])
   .then((rows) => {
       console.log('start_transaction for' + req.query.txid);
+      console.log(req.query);
+      console.log(rows);
       let amount;
       let user;
       if (rows[0].seller === null) {
@@ -95,7 +98,7 @@ exports.send_message = function (req, res) {
     string = string.concat("Item Description: ").concat(transact.itemDescription).concat('\n');
     string = string.concat("Please upload your item to continue with this transaction.");
     
-    
+    console.log('about to call ui.sendText');
     ui.sendText(req.body.psid, string);
     return res.status(200).send('EVENT_RECEIVED');
   })
@@ -119,3 +122,11 @@ exports.abort = function (req, res) {
 exports.database = function (req, res) {
 
 };
+
+exports.sendFinalMessage = function (txid, message) {
+  return dbHelp.allAsync("SELECT * FROM transactions WHERE txid=?", [txid])
+  .then((rows) => {
+    ui.sendText(rows[0].buyer, message);
+    ui.sendText(rows[0].seller, message);
+  });
+}

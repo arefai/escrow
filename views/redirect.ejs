@@ -86,8 +86,8 @@
             "payload":{
               "template_type":"generic",
               "elements": [{
-                "title":"Transaction Agreed to, now click to pay",
-                "subtitle": "SUBTITLE",
+                "title":"The transaction has been agreed to, now click to pay with stripe",
+                "subtitle": "Transaction",
                 "default_action":{
                   "type":"web_url",
                   "url": url,
@@ -143,7 +143,7 @@
 
               if (role === 'seller') {
                 console.log('about to send message');
-                sendText('Upload your pdf here.');
+                sendText('Upload your electronic item here.');
               }
             }
             else{

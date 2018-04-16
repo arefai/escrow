@@ -1,0 +1,1 @@
+UPDATE transactions SET itemLink="https://scontent.fdet1-2.fna.fbcdn.net/v/t34.0-0/s261x260/30007643_1829891403728742_1937488819_n.png?_nc_cat=0&oh=32e2eefbb8cf2b0b375b7d711b6d288a&oe=5AD6F5B4" WHERE itemLink is NULL AND seller_agreed=1;

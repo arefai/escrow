@@ -64,6 +64,7 @@ app.get('/authorize', payments.authorize);
 app.post('/payments/submit', payments.sendCharge);
 app.get('/payments/confirmation', payments.confirm);
 app.get('/receiveLogin/:redirect', payments.receiveLogin); 
+app.get('/final_pay', payments.final_pay);
 
 app.get('/extension', extension.home);
 app.get('/start_transaction', extension.start_transaction);
@@ -73,11 +74,6 @@ app.get('/change_price', extension.change_price);
 app.post('/log', extension.log);
 app.post('/send_message', extension.send_message);
 app.post('/post_database', extension.database);
-
-app.get('/final_pay', function (req, res){
-  let txid = req.query.txid;
-  res.render('final_pay', {txid: txid});
-});
 
 app.post("/get_and_update_user", [
     check('psid').exists()
@@ -347,7 +343,12 @@ app.post('/checkUser', function (req, res) {
     return dbHelp.allAsync("SELECT * FROM users WHERE psid=?", [psid])
     .then(function(rows) {
       console.log(rows);
-      return res.send(JSON.stringify({error: false, userPresent: rows[0].stripe_id != null}));
+      if (rows.length === 0) {
+        return res.send(JSON.stringify({error : false, userPresent : false}));
+      }
+      else {                               
+        return res.send(JSON.stringify({error: false, userPresent: rows[0].stripe_id != null}));
+      }
     })
     .catch(function (err) {
       return res.send(JSON.stringify({error: true, errorMessage: "There was a problem with the database"}));
@@ -358,9 +359,9 @@ app.post('/checkUser', function (req, res) {
 app.post('/getStripeID', function (req, res) {
     let psid = req.body.psid;
     
-    return dbHelp.allAsync("SELECT stripe_id, auth_token FROM users WHERE psid=?", [psid])
+    return dbHelp.allAsync("SELECT stripe_id FROM users WHERE psid=?", [psid])
     .then(function(rows) {
-      return res.send(JSON.stringify({error: false, stripe_id: rows.stripe_id, auth_token: rows.auth_token}));
+      return res.send(JSON.stringify({error: false, stripe_id: rows.stripe_id}));
     })
     .catch(function (err) {
       return res.send(JSON.stringify({error: true, errorMessage: "There was a problem with the database"}));
@@ -442,8 +443,14 @@ app.post('/webhook', (req, res) => {
 
       // Get the webhook event. entry.messaging is an array, but 
       // will only ever contain one event, so we get index 0
+      // console.log(entry.messaging[0]);
+      console.log(entry);
+      if (!entry.messaging) { 
+        return;
+      }
       let webhook_event = entry.messaging[0];
-      console.log(webhook_event.message);
+      console.log(webhook_event);
+      
       
       let sender_psid = webhook_event.sender.id;
 
